@@ -1,0 +1,3131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>India Orders Heatmap Grid & Stores</title>
+ <!-- Leaflet CSS -->
+   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+    <style>
+        /* --- Base Styles --- */
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; background-color: #f0f4f8; overflow: hidden; }
+
+        /* --- Left Sidebar --- */
+        .sidebar {
+            width: 250px; background-color: #fff; padding: 15px; box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex; flex-direction: column; z-index: 1000; height: 100vh; box-sizing: border-box; flex-shrink: 0;
+        }
+        .sidebar .fixed-container { flex-shrink: 0; }
+        .sidebar .scrollable-container {
+            flex-grow: 1; overflow-y: auto; margin-bottom: 0; padding-bottom: 15px;
+            scrollbar-width: thin; scrollbar-color: #aaa #f0f4f8;
+        }
+        .sidebar .scrollable-container::-webkit-scrollbar { width: 8px; }
+        .sidebar .scrollable-container::-webkit-scrollbar-track { background: #f0f4f8; }
+        .sidebar .scrollable-container::-webkit-scrollbar-thumb { background-color: #aaa; border-radius: 4px; }
+        .sidebar .fixed-container h2 { margin-top: 0; margin-bottom: 15px; font-size: 1.3em; color: #333; border-bottom: 1px solid #eee; padding-bottom: 10px; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* --- Store Search Styles --- */
+        #store-search-input:focus { outline: none; border-color: #007bff; box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25); }
+        #store-search-button:hover { background-color: #0056b3; }
+        .sidebar h3 { margin-top: 15px; margin-bottom: 8px; font-size: 1.05em; color: #444;}
+        .city-list { margin-bottom: 15px; }
+        .city-list ul { list-style: none; padding: 0; margin: 0; }
+        .city-list li button { display: block; width: 100%; padding: 8px 10px; margin-bottom: 6px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: left; font-size: 0.9em; transition: background-color 0.2s ease; box-sizing: border-box; word-wrap: break-word; white-space: normal; line-height: 1.3; }
+        .city-list li button:hover { background-color: #0056b3; }
+        .city-list li button.active { background-color: #e67e22; font-weight: bold; }
+        #btn-india-view { background-color: #28a745; font-weight: bold; margin-bottom: 10px; width: 100%; padding: 8px 10px; border: none; border-radius: 4px; cursor: pointer; text-align: center; font-size: 0.9em; color: white; box-sizing: border-box; transition: background-color 0.2s ease;}
+        #btn-india-view:hover { background-color: #218838; }
+        .controls-bottom { border-top: 1px solid #eee; padding-top: 15px; margin-top: 10px; }
+        .controls-bottom .button-row { display: flex; flex-direction: column; gap: 8px; align-items: stretch;}
+        #btn-process-data, #btn-erase-data, #btn-analyze-store-coverage, #btn-copy-store-coverage { /* Button styling */
+             padding: 8px 10px; border: none; border-radius: 4px; cursor: pointer; text-align: center; font-size: 0.9em; transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease; color: white; width: 100%; box-sizing: border-box;
+        }
+        #btn-process-data { background-color: #5bc0de; } /* Copy Grid Values */
+        #btn-process-data:hover { background-color: #31b0d5; }
+        #btn-process-data:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7; }
+        #btn-erase-data { background-color: #dc3545; } /* Clear Data */
+        #btn-erase-data:hover { background-color: #c82333; }
+        #btn-erase-data:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7;}
+        #btn-analyze-store-coverage { background-color: #ffc107; color: #212529; } /* Estimate Orders (Real Data) */
+        #btn-analyze-store-coverage:hover { background-color: #e0a800; }
+        #btn-analyze-store-coverage:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7;}
+        #btn-copy-store-coverage { background-color: #6c757d; margin-top: 10px; } /* Copy Analysis */
+        #btn-copy-store-coverage:hover { background-color: #5a6268; }
+        #btn-copy-store-coverage:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7; }
+        #clear-distance-markers-button { background-color: #dc3545; margin-top: 6px; }
+        #clear-distance-markers-button:hover { background-color: #c82333; }
+
+
+        /* --- Store Coverage Analysis (Left Sidebar) --- */
+        #store-coverage-analysis { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; }
+        #store-coverage-analysis h3 { margin-top: 0; margin-bottom: 8px; font-size: 1.0em; color: #444; font-weight: bold; }
+        #store-coverage-table-container { max-height: 200px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #eee; font-size: 0.85em; }
+        #store-coverage-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        #store-coverage-table th, #store-coverage-table td { padding: 3px 5px; border-bottom: 1px solid #f0f0f0; text-align: left; word-wrap: break-word; }
+        #store-coverage-table th { background-color: #f8f9fa; font-weight: bold; position: sticky; top: 0; }
+        #store-coverage-table th:nth-child(1), #store-coverage-table td:nth-child(1) { width: 18%; text-align: center; } /* Rank */
+        #store-coverage-table th:nth-child(2), #store-coverage-table td:nth-child(2) { width: 42%; } /* Store ID / Store ID(s) */
+        #store-coverage-table th:nth-child(3), #store-coverage-table td:nth-child(3) { width: 40%; text-align: right;} /* Orders */
+        #store-coverage-slider-container { margin-top: 5px; text-align: center; font-size: 0.85em;}
+        #store-coverage-slider { width: 80%; margin-top: 5px; cursor: pointer; }
+        #store-coverage-analysis .placeholder { color: #888; font-style: italic; font-size: 0.85em; padding: 5px; text-align: center; }
+
+        /* --- Map Container --- */
+        .map-container { flex-grow: 1; height: 100vh; position: relative; }
+        #map { width: 100%; height: 100%; background-color: #ddd; }
+        #loader { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; z-index: 2000; background-color: rgba(255,255,255,0.7); display: none; }
+        @keyframes spin { 0% { transform: translate(-50%, -50%) rotate(0deg); } 100% { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        /* --- Right Sidebar --- */
+        .right-sidebar {
+            width: 220px; background-color: #fff; padding: 15px; box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+            z-index: 999; height: 100vh; box-sizing: border-box;
+            display: flex; flex-direction: column; flex-shrink: 0;
+        }
+        .right-sidebar h2 { margin-top: 0; margin-bottom: 15px; font-size: 1.2em; color: #333; flex-shrink: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .right-scrollable-content { flex-grow: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #aaa #f0f4f8; }
+        .right-scrollable-content::-webkit-scrollbar { width: 8px; }
+        .right-scrollable-content::-webkit-scrollbar-track { background: #f0f4f8; }
+        .right-scrollable-content::-webkit-scrollbar-thumb { background-color: #aaa; border-radius: 4px; }
+        .right-sidebar .controls-section { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+        .right-sidebar h3 { margin-top: 10px; margin-bottom: 8px; font-size: 1.0em; color: #444; font-weight: bold;}
+        .right-sidebar .toggle-list ul { list-style: none; padding: 0; margin: 0; }
+        .right-sidebar .toggle-option { margin-bottom: 5px; position: relative; }
+        .right-sidebar .toggle-option input[type="radio"] { opacity: 0; position: absolute; left: -9999px; }
+        .right-sidebar .toggle-option label { display: block; text-align: center; width: 100%; box-sizing: border-box; background-color: #6c757d; font-weight: normal; color: #fff; padding: 6px 8px; margin-bottom: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease; font-size: 0.85em; }
+        .right-sidebar .toggle-option label:hover { background-color: #5a6268; }
+        .right-sidebar .toggle-option input[type="radio"]:checked + label { background-color: #17a2b8; font-weight: bold; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); }
+        #analysis-mode-toggle .toggle-option input[type="radio"]:checked + label { background-color: #fd7e14; } /* Orange for active mode */
+        #btn-plot-boundaries {
+            background-color: #6f42c1; color: white; padding: 8px 10px; border: none; border-radius: 4px; cursor: pointer;
+            text-align: center; font-size: 0.9em; transition: background-color 0.2s ease; width: 100%; box-sizing: border-box;
+            margin-top: 8px; display: none; /* Hidden by default */
+        }
+        #btn-plot-boundaries:hover { background-color: #5a349a; }
+        #btn-plot-boundaries:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7; }
+        #btn-clear-catchments {
+            background-color: #dc3545; color: white; padding: 8px 10px; border: none; border-radius: 4px; cursor: pointer;
+            text-align: center; font-size: 0.9em; transition: background-color 0.2s ease; width: 100%; box-sizing: border-box;
+            margin-top: 5px; display: none; /* Hidden by default */
+        }
+        #btn-clear-catchments:hover { background-color: #c82333; }
+        #btn-clear-catchments:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7; }
+        .right-sidebar .store-toggle { margin-top: 15px; }
+        .right-sidebar .store-toggle label { display: inline-block; width: auto; background-color: #eee; color: #333; padding: 5px 10px; margin-left: 5px; vertical-align: middle; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; }
+        .right-sidebar .store-toggle input[type="checkbox"] { transform: scale(1.2); vertical-align: middle; margin-right: 5px; cursor: pointer; }
+        .right-sidebar .store-toggle input[type="checkbox"]:checked + label { background-color: #28a745; color: white; border-color: #218838; font-weight: bold; }
+        #retail-legend { margin-top: 10px; font-size: 0.85em; padding: 8px; border: 1px solid #eee; border-radius: 4px; background-color: #fdfdfd; }
+        #retail-legend div { margin-bottom: 3px; display: flex; align-items: center; }
+        #retail-legend span { height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 5px; border: 1px solid #ccc; flex-shrink: 0; }
+        .right-sidebar .centroid-toggle { margin-top: 10px; }
+        .right-sidebar .centroid-button { display: block; text-align: center; width: 100%; box-sizing: border-box; background-color: #6c757d; font-weight: normal; color: #fff; padding: 6px 8px; margin-bottom: 4px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease; font-size: 0.85em; }
+        .right-sidebar .centroid-button:hover { background-color: #5a6268; }
+        .right-sidebar .centroid-button.active { background-color: #000000; font-weight: bold; box-shadow: inset 0 1px 3px rgba(255,255,255,0.2); }
+        .right-sidebar .centroid-button:disabled { background-color: #a0a0a0; cursor: default; opacity: 0.7; }
+        #grid-summary-container { padding-top: 15px; }
+        #grid-summary-container h3 { margin: 0 0 8px 0; font-size: 1.0em; color: #444; font-weight: bold;}
+        #grid-summary-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        #grid-summary-table td { padding: 4px 5px; border: 1px solid #e0e0e0; text-align: left;}
+        #grid-summary-table td:first-child { font-weight: bold; color: #555; width: 45%; }
+        #grid-summary-table td:last-child { text-align: right; color: #333; }
+        #grid-summary-container .placeholder { color: #888; font-style: italic; font-size: 0.85em; padding: 5px; }
+
+        /* Grid label style */
+        .grid-label { background-color: rgba(255, 255, 255, 0.85); color: #333; border: none; box-shadow: none; border-radius: 3px; padding: 1px 4px; font-size: 9px; font-weight: bold; white-space: nowrap; user-select: text; }
+
+       
+    </style>
+</head>
+<body>
+
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+         <div class="fixed-container">
+             <h2>India Overview</h2>
+
+             <!-- *** NEW Store Search *** -->
+            <div id="store-search-container" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                <input type="text" id="store-search-input" placeholder="Search Store ID..." style="width: calc(100% - 65px); padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px 0 0 4px; font-size: 0.9em; box-sizing: border-box; vertical-align: middle;">
+                <button id="store-search-button" style="width: 60px; padding: 6px 8px; background-color: #007bff; color: white; border: none; border-radius: 0 4px 4px 0; cursor: pointer; font-size: 0.9em; vertical-align: middle; transition: background-color 0.2s ease;">Go</button>
+                <div id="store-search-feedback" style="font-size: 0.8em; color: #dc3545; margin-top: 4px; min-height: 1.2em;"></div>
+            </div>
+            <!-- *** NEW Driving Distance Markers *** -->
+            <div id="distance-container" style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                <button id="distance-markers-button" style="width: 100%; padding: 6px 8px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; transition: background-color 0.2s ease; margin-bottom: 6px;">Add Distance Markers</button>
+                <button id="clear-distance-markers-button" style="width: 100%; padding: 6px 8px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9em; transition: background-color 0.2s ease; display:none;">Clear Distance Markers</button>
+                <div style="font-size: 0.8em; color:#555; margin-bottom:4px;">Drag the red and green markers on the map.</div>
+                <div id="distance-feedback" style="font-size: 0.8em; color: #333; min-height: 1.2em;"></div>
+            </div>
+            <!-- *** END Driving Distance Markers *** -->
+             <!-- *** END Store Search *** -->
+
+             <button id="btn-india-view">India (Overview)</button>
+             <h3>Zoom to City</h3>
+         </div>
+         <div class="scrollable-container">
+             <div class="city-list">
+                <ul>
+<li><button data-city="bengaluru" data-lat="12.9716" data-lng="77.5946">Bengaluru</button></li>
+<li><button data-city="noida" data-lat="28.5740" data-lng="77.3540">Noida</button></li>  <!-- from context -->
+<li><button data-city="jaipur" data-lat="26.9075" data-lng="75.7396">Jaipur</button></li>  <!-- :contentReference[oaicite:1]{index=1} -->
+<li><button data-city="lucknow" data-lat="26.8500" data-lng="80.9500">Lucknow</button></li> <!-- :contentReference[oaicite:2]{index=2} -->
+<li><button data-city="kolkata" data-lat="22.5726" data-lng="88.3639">Kolkata</button></li>
+<li><button data-city="ghaziabad" data-lat="28.6692" data-lng="77.4538">Ghaziabad</button></li>
+<li><button data-city="faridabad" data-lat="28.4089" data-lng="77.3178">Faridabad</button></li>
+<li><button data-city="new_delhi" data-lat="28.6139" data-lng="77.2090">New Delhi</button></li> <!-- Delhi coords -->
+<li><button data-city="mumbai" data-lat="19.0761" data-lng="72.8774">Mumbai</button></li> <!-- :contentReference[oaicite:3]{index=3} -->
+<li><button data-city="hyderabad" data-lat="17.3850" data-lng="78.4867">Hyderabad</button></li>
+<li><button data-city="chennai" data-lat="13.0827" data-lng="80.2707">Chennai</button></li>
+<li><button data-city="visakhapatnam" data-lat="17.6868" data-lng="83.2185">Visakhapatnam</button></li>
+<li><button data-city="bhuvneshwar" data-lat="20.2961" data-lng="85.8245">Bhubaneswar</button></li>
+<li><button data-city="kanpur" data-lat="26.4499" data-lng="80.3319">Kanpur</button></li>
+<li><button data-city="guwahati" data-lat="26.1445" data-lng="91.7362">Guwahati</button></li>
+<li><button data-city="ranchi" data-lat="23.3441" data-lng="85.3096">Ranchi</button></li>
+<li><button data-city="patna" data-lat="25.5941" data-lng="85.1376">Patna</button></li>
+<li><button data-city="dehradun" data-lat="30.3165" data-lng="78.0322">Dehradun</button></li>
+<li><button data-city="varanasi" data-lat="25.3176" data-lng="82.9739">Varanasi</button></li>
+                </ul>
+             </div>
+             <div class="controls-bottom">
+                 <div class="button-row">
+                     <button id="btn-process-data" disabled>Copy Grid Values</button>
+                     <button id="btn-analyze-store-coverage" disabled>Estimate Orders (Real Data)</button> <!-- Clarified button text -->
+                     <button id="btn-erase-data">Clear Data</button>
+                 </div>
+                 <div id="store-coverage-analysis" style="display: none;">
+                     <h3 id="analysis-results-title">Analysis Results</h3>
+                     <div id="store-coverage-table-container">
+                          <div class="placeholder">Run analysis first...</div>
+                     </div>
+                     <div id="store-coverage-slider-container">
+                         <label for="store-coverage-slider">Show Top <span id="store-coverage-slider-label">0</span> Items:</label><br>
+                         <input type="range" id="store-coverage-slider" min="0" max="0" value="0" step="1" disabled>
+                     </div>
+                     <button id="btn-copy-store-coverage" disabled>Copy Analysis Data</button>
+                 </div>
+             </div>
+         </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+        <div id="map"></div>
+        <div id="loader"></div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="right-sidebar">
+        <h2>Controls</h2>
+        <div class="right-scrollable-content">
+             <!-- Analysis Mode Toggle -->
+             <div class="controls-section" id="analysis-mode-toggle">
+                <h3>Analysis Mode</h3>
+                <div class="toggle-list">
+                    <ul>
+                        <li class="toggle-option"><input type="radio" id="mode-grid" name="analysis-mode-toggle" value="grid" checked><label for="mode-grid">Grid Mode</label></li>
+                        <li class="toggle-option"><input type="radio" id="mode-boundary" name="analysis-mode-toggle" value="boundary"><label for="mode-boundary">Boundary Mode</label></li>
+                    </ul>
+                 </div>
+                 <button id="btn-plot-boundaries">Plot Boundaries</button>
+                 <button id="btn-clear-catchments">Clear Catchments</button>
+             </div>
+             <!-- Catchment Size (Used by both modes) -->
+            <div class="controls-section" id="catchment-controls">
+                <h3>Catchment Size</h3>
+                <div id="catchment-radio-group" class="toggle-list">
+                    <ul>
+                        <li class="toggle-option"><input type="radio" id="grid-none" name="grid-toggle" value="none" checked><label for="grid-none">None</label></li>
+                        <li class="toggle-option"><input type="radio" id="grid-4km" name="grid-toggle" value="4km"><label for="grid-4km">30min Catchment</label></li>
+                        <li class="toggle-option"><input type="radio" id="grid-8km" name="grid-toggle" value="8km"><label for="grid-8km">60min Catchment</label></li>
+<li class="toggle-option">
+  <input type="radio" id="grid-heatmap" name="grid-toggle" value="heatmap">
+  <label for="grid-heatmap">Real Heatmap</label>
+</li>
+
+                    </ul>
+                 </div>
+                 <div id="boundary-catchment-checkboxes" class="store-toggle" style="display:none; margin-top:10px;">
+                   <label><input type="checkbox" value="4km" class="catchment-checkbox"> 30min Catchment</label>
+                   <label><input type="checkbox" value="8km" class="catchment-checkbox"> 60min Catchment</label>
+  <label><input type="checkbox" value="heatmap" class="catchment-checkbox"> Real Heatmap</label>
+                 </div>
+            </div>
+             <!-- Heatmap Gradient (Grid Mode Only) -->
+            <div class="controls-section" id="heatmap-controls">
+                 <h3>Heat Map Gradient</h3>
+                 <div class="toggle-list">
+                     <ul>
+                         <li class="toggle-option"><input type="radio" id="scale-3" name="color-scale-toggle" value="3"><label for="scale-3">0 - 3</label></li>
+                         <li class="toggle-option"><input type="radio" id="scale-5" name="color-scale-toggle" value="5"><label for="scale-5">0 - 5</label></li>
+                         <li class="toggle-option"><input type="radio" id="scale-10" name="color-scale-toggle" value="10"><label for="scale-10">0 - 10</label></li>
+                         <li class="toggle-option"><input type="radio" id="scale-15" name="color-scale-toggle" value="15" checked><label for="scale-15">0 - 15</label></li>
+                         <li class="toggle-option"><input type="radio" id="scale-20" name="color-scale-toggle" value="20"><label for="scale-20">0 - 20</label></li>
+                     </ul>
+                  </div>
+            </div>
+                 <div id="retail-legend" style="display: none;">
+    <div><span style="background-color:#f1310f;"></span> Retail_Store</div>
+    <div><span style="background-color:#ff8221;"></span> Upcoming_Retail_Store</div>
+</div>
+            <!-- ADs Locations -->
+<div class="controls-section" id="ads-toggle-section">
+  <h3>Store Type</h3>
+  <div class="store-toggle">
+  <!-- Checkboxes for toggling each store type layer -->
+  <label><input type="checkbox" id="toggle-retail-store" checked> Retail Store</label>
+  <label><input type="checkbox" id="toggle-upcoming-retail-store" checked> Upcoming Retail Store</label>
+
+  <label><input type="checkbox" id="toggle-fc" checked> FC</label>
+  <label><input type="checkbox" id="toggle-upcoming-fc" checked> Upcoming FC</label>
+
+  <label><input type="checkbox" id="toggle-docpharma" checked> Docpharma</label>
+  <label><input type="checkbox" id="toggle-upcoming-docpharma" checked> Upcoming Docpharma</label>
+
+  <label><input type="checkbox" id="toggle-bb" checked> BB</label>
+  <label><input type="checkbox" id="toggle-upcoming-bb" checked> Upcoming BB</label>
+</div>
+
+</div>
+  <!-- Retail‐Store Toggle List -->
+  <div id="store-toggle-container"
+       style="margin-top:1em; padding-top:1em; border-top:1px solid #ccc;">
+    <h4 style="margin-bottom:0.5em; font-size:1rem;">Retail Store Visibility</h4>
+    <!-- JS will populate individual checkboxes here -->
+  </div>
+
+
+
+             </div>
+             <!-- Grid Cell Analysis (Grid Mode Only) -->
+            <div class="controls-section" id="grid-analysis-controls">
+                <h3 style="margin-top: 15px;">Grid Cell Analysis</h3>
+                <div class="centroid-toggle">
+                    <button id="btn-toggle-centroids" class="centroid-button">Show Cell Centroids</button>
+                </div>
+            </div>
+             <!-- Grid Summary (Grid Mode Only) -->
+            <div id="grid-summary-container">
+                 <div class="placeholder">Summary data will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <script>
+"use strict";
+
+function _typeof(o) { "@babel/helpers - typeof"; return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function (o) { return typeof o; } : function (o) { return o && "function" == typeof Symbol && o.constructor === Symbol && o !== Symbol.prototype ? "symbol" : typeof o; }, _typeof(o); }
+function _regenerator() { /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */ var e, t, r = "function" == typeof Symbol ? Symbol : {}, n = r.iterator || "@@iterator", o = r.toStringTag || "@@toStringTag"; function i(r, n, o, i) { var c = n && n.prototype instanceof Generator ? n : Generator, u = Object.create(c.prototype); return _regeneratorDefine2(u, "_invoke", function (r, n, o) { var i, c, u, f = 0, p = o || [], y = !1, G = { p: 0, n: 0, v: e, a: d, f: d.bind(e, 4), d: function d(t, r) { return i = t, c = 0, u = e, G.n = r, a; } }; function d(r, n) { for (c = r, u = n, t = 0; !y && f && !o && t < p.length; t++) { var o, i = p[t], d = G.p, l = i[2]; r > 3 ? (o = l === n) && (u = i[(c = i[4]) ? 5 : (c = 3, 3)], i[4] = i[5] = e) : i[0] <= d && ((o = r < 2 && d < i[1]) ? (c = 0, G.v = n, G.n = i[1]) : d < l && (o = r < 3 || i[0] > n || n > l) && (i[4] = r, i[5] = n, G.n = l, c = 0)); } if (o || r > 1) return a; throw y = !0, n; } return function (o, p, l) { if (f > 1) throw TypeError("Generator is already running"); for (y && 1 === p && d(p, l), c = p, u = l; (t = c < 2 ? e : u) || !y;) { i || (c ? c < 3 ? (c > 1 && (G.n = -1), d(c, u)) : G.n = u : G.v = u); try { if (f = 2, i) { if (c || (o = "next"), t = i[o]) { if (!(t = t.call(i, u))) throw TypeError("iterator result is not an object"); if (!t.done) return t; u = t.value, c < 2 && (c = 0); } else 1 === c && (t = i["return"]) && t.call(i), c < 2 && (u = TypeError("The iterator does not provide a '" + o + "' method"), c = 1); i = e; } else if ((t = (y = G.n < 0) ? u : r.call(n, G)) !== a) break; } catch (t) { i = e, c = 1, u = t; } finally { f = 1; } } return { value: t, done: y }; }; }(r, o, i), !0), u; } var a = {}; function Generator() {} function GeneratorFunction() {} function GeneratorFunctionPrototype() {} t = Object.getPrototypeOf; var c = [][n] ? t(t([][n]())) : (_regeneratorDefine2(t = {}, n, function () { return this; }), t), u = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(c); function f(e) { return Object.setPrototypeOf ? Object.setPrototypeOf(e, GeneratorFunctionPrototype) : (e.__proto__ = GeneratorFunctionPrototype, _regeneratorDefine2(e, o, "GeneratorFunction")), e.prototype = Object.create(u), e; } return GeneratorFunction.prototype = GeneratorFunctionPrototype, _regeneratorDefine2(u, "constructor", GeneratorFunctionPrototype), _regeneratorDefine2(GeneratorFunctionPrototype, "constructor", GeneratorFunction), GeneratorFunction.displayName = "GeneratorFunction", _regeneratorDefine2(GeneratorFunctionPrototype, o, "GeneratorFunction"), _regeneratorDefine2(u), _regeneratorDefine2(u, o, "Generator"), _regeneratorDefine2(u, n, function () { return this; }), _regeneratorDefine2(u, "toString", function () { return "[object Generator]"; }), (_regenerator = function _regenerator() { return { w: i, m: f }; })(); }
+function _regeneratorDefine2(e, r, n, t) { var i = Object.defineProperty; try { i({}, "", {}); } catch (e) { i = 0; } _regeneratorDefine2 = function _regeneratorDefine(e, r, n, t) { if (r) i ? i(e, r, { value: n, enumerable: !t, configurable: !t, writable: !t }) : e[r] = n;else { var o = function o(r, n) { _regeneratorDefine2(e, r, function (e) { return this._invoke(r, n, e); }); }; o("next", 0), o("throw", 1), o("return", 2); } }, _regeneratorDefine2(e, r, n, t); }
+function ownKeys(e, r) { var t = Object.keys(e); if (Object.getOwnPropertySymbols) { var o = Object.getOwnPropertySymbols(e); r && (o = o.filter(function (r) { return Object.getOwnPropertyDescriptor(e, r).enumerable; })), t.push.apply(t, o); } return t; }
+function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }
+function _defineProperty(e, r, t) { return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, { value: t, enumerable: !0, configurable: !0, writable: !0 }) : e[r] = t, e; }
+function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" == _typeof(i) ? i : i + ""; }
+function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
+function _toConsumableArray(r) { return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread(); }
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+function _iterableToArray(r) { if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r); }
+function _arrayWithoutHoles(r) { if (Array.isArray(r)) return _arrayLikeToArray(r); }
+function _createForOfIteratorHelper(r, e) { var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"]; if (!t) { if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e && r && "number" == typeof r.length) { t && (r = t); var _n = 0, F = function F() {}; return { s: F, n: function n() { return _n >= r.length ? { done: !0 } : { done: !1, value: r[_n++] }; }, e: function e(r) { throw r; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var o, a = !0, u = !1; return { s: function s() { t = t.call(r); }, n: function n() { var r = t.next(); return a = r.done, r; }, e: function e(r) { u = !0, o = r; }, f: function f() { try { a || null == t["return"] || t["return"](); } finally { if (u) throw o; } } }; }
+function _unsupportedIterableToArray(r, a) { if (r) { if ("string" == typeof r) return _arrayLikeToArray(r, a); var t = {}.toString.call(r).slice(8, -1); return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0; } }
+function _arrayLikeToArray(r, a) { (null == a || a > r.length) && (a = r.length); for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e]; return n; }
+function asyncGeneratorStep(n, t, e, r, o, a, c) { try { var i = n[a](c), u = i.value; } catch (n) { return void e(n); } i.done ? t(u) : Promise.resolve(u).then(r, o); }
+function _asyncToGenerator(n) { return function () { var t = this, e = arguments; return new Promise(function (r, o) { var a = n.apply(t, e); function _next(n) { asyncGeneratorStep(a, r, o, _next, _throw, "next", n); } function _throw(n) { asyncGeneratorStep(a, r, o, _next, _throw, "throw", n); } _next(void 0); }); }; }
+// --- Configuration & Constants ---
+var INDIA_CENTER = [22.5, 82.0];
+var INDIA_ZOOM = 5;
+var INITIAL_ZOOM = INDIA_ZOOM;
+var CITY_ZOOM = 12;
+var FLY_DURATION = 1.0;
+var GRID_TOOLTIP_THRESHOLD = 1.0;
+var GRID_1KM_THRESHOLD = 0.1;
+var RETAIL_MARKER_RADIUS = 5;
+var HIGHLIGHT_CELL_STYLE = {
+  color: 'yellow',
+  weight: 2,
+  opacity: 0.9,
+  fillOpacity: 0.1
+};
+var BLINKING_BOUNDARY_STYLE = {
+  color: '#000000',
+  weight: 2.5,
+  opacity: 1,
+  fillOpacity: 0,
+  dashArray: '5, 5',
+  interactive: false
+};
+var redIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+var greenIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
+// --- Global State Variables ---
+var currentAnalysisMode = 'grid';
+var currentMaxColorValue = 15;
+var activeGridLayer = null;
+var currentGridSize = 'none';
+var heatmapLayer = null;
+var currentCityFilter = null;
+// Layers for specific store types
+var retailLayer = L.layerGroup(); // Retail_Store
+var upcomingRetailLayer = L.layerGroup(); // Upcoming_Retail_Store
+var fcLayer = L.layerGroup(); // FC
+var upcomingFcLayer = L.layerGroup(); // Upcoming_FC
+var docpharmaLayer = L.layerGroup(); // Docpharma
+var upcomingDocpharmaLayer = L.layerGroup(); // Upcoming_Docpharma
+var bbLayer = L.layerGroup(); // BB
+var upcomingBbLayer = L.layerGroup(); // Upcoming_BB
+// Combined layer for search functionality (all retail markers, regardless of type)
+var allRetailMarkersLayer = L.layerGroup(); // NEW: A single layer to hold all retail markers for easy searching
+// Dictionary to keep each retail‐store marker by its storeId
+var retailStoreMarkers = {};
+var isStoreDataLoaded = false; // Flag to indicate if retail store data has been processed
+var currentGridValues = [];
+var needsGridRegeneration = false;
+var isRegenerationInProgress = false;
+var canonicalView = {
+  lat: INDIA_CENTER[0],
+  lng: INDIA_CENTER[1],
+  zoom: INDIA_ZOOM
+};
+var centroidLayer = L.layerGroup();
+var areCentroidsVisible = false;
+var CENTROID_MARKER_OPTIONS = {
+  radius: 3,
+  fillColor: "#000000",
+  color: "#000000",
+  weight: 1,
+  opacity: 1,
+  fillOpacity: 0.9
+};
+var coveredGridCellsData = [];
+var boundaryAnalysisResults = [];
+var highlightedGridLayer = L.featureGroup();
+var storeClickBoundaryLayer = L.featureGroup();
+var boundaryLayer = L.featureGroup();
+
+        // --- DATA INPUT ---
+        // !!! Keep your actual data here !!!
+        const actualDataPoints = [{lat:-26.701323795661345, lng:-60.13421215116978 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:-26.701323795661345, lng:-60.13421215116978 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:1.352083, lng:103.819836 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:11.6974184, lng:76.6372243 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.0751418, lng:76.36879309999999 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.5462442, lng:77.4198823 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6417953, lng:77.4400443 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6417953, lng:77.4400443 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6417953, lng:77.4400443 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6417953, lng:77.4400443 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.671688149447862, lng:77.69372127950191 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.679498, lng:77.6903452 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6900929, lng:77.7042706 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6905238, lng:77.7047865 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.690655279032232, lng:77.70522738776624 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.691726436191248, lng:77.71309487521648 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.694276426358737, lng:77.6995085958786 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.6999309142149, lng:77.7041946964965 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7010947, lng:77.7029923 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7014825, lng:77.7043787 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7014825, lng:77.7043787 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7019867, lng:77.70129 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.703550578040753, lng:77.70127840340137 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.703550578040753, lng:77.70127840340137 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7036156, lng:77.7021031 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.703934919635378, lng:77.70302112399457 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.704799930812428, lng:77.70444036076624 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.704799930812428, lng:77.70444036076624 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.705138713676355, lng:77.70083756669875 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.70535543842784, lng:77.64971328010608 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.705700725098358, lng:77.70284554100314 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.708156974331487, lng:77.69254110753536 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7090575, lng:77.6992265 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.710216649001637, lng:77.70434497440894 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7102234920883, lng:77.69891481089306 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.710401270357574, lng:77.69124995917082 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.71083233514724, lng:77.69236274063587 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.711437499999999, lng:77.6515625 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.711821738898484, lng:77.6998338930874 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7120473, lng:77.6995088 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.712080079764641, lng:77.69464658228587 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.71225329670428, lng:77.70396427116393 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.71237580762251, lng:77.69654365553866 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7137292, lng:77.6968982 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.71385383, lng:77.7026062 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7144453, lng:77.7014057 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7145476, lng:77.6976713 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.714604284378137, lng:77.67696250230074 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7153653, lng:77.7046075 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.716490968415702, lng:77.69876428108047 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.716490968415702, lng:77.69876428108047 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.716942706815331, lng:77.70006210597889 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.716942706815331, lng:77.70006210597889 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7174149, lng:77.6995498 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.718830368335677, lng:77.70391654430857 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.719470099999999, lng:77.7009755 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7220974, lng:77.6992624 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7223076, lng:77.7005275 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7226855, lng:77.67651839999999 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.72456, lng:77.66613 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7281016, lng:77.7102562 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7285751, lng:77.6397796 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.7294759, lng:77.7253995 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:12.729524405836447, lng:77.73343674838543 , orders: 0.000852696653165636, city:"BANGALORE"},
+{lat:77.0219019, lng:28.4554726 , orders: 0.00181917409496089, city:"GURGAON"}];
+
+
+
+        console.log(`Actual Data loaded: ${actualDataPoints.length} points`);
+const retailStoreData = [
+
+{ storeId: "{{RetailStoreId_1}}", lat: {{RetailLat_1}}, lng: {{RetailLng_1}}, type: "{{RetailStoretype_1}}" },
+{ storeId: "{{RetailStoreId_2}}", lat: {{RetailLat_2}}, lng: {{RetailLng_2}}, type: "{{RetailStoretype_2}}" },
+{ storeId: "{{RetailStoreId_3}}", lat: {{RetailLat_3}}, lng: {{RetailLng_3}}, type: "{{RetailStoretype_3}}" },
+{ storeId: "{{RetailStoreId_4}}", lat: {{RetailLat_4}}, lng: {{RetailLng_4}}, type: "{{RetailStoretype_4}}" },
+{ storeId: "{{RetailStoreId_5}}", lat: {{RetailLat_5}}, lng: {{RetailLng_5}}, type: "{{RetailStoretype_5}}" },
+{ storeId: "{{RetailStoreId_6}}", lat: {{RetailLat_6}}, lng: {{RetailLng_6}}, type: "{{RetailStoretype_6}}" },
+{ storeId: "{{RetailStoreId_7}}", lat: {{RetailLat_7}}, lng: {{RetailLng_7}}, type: "{{RetailStoretype_7}}" },
+{ storeId: "{{RetailStoreId_8}}", lat: {{RetailLat_8}}, lng: {{RetailLng_8}}, type: "{{RetailStoretype_8}}" },
+{ storeId: "{{RetailStoreId_9}}", lat: {{RetailLat_9}}, lng: {{RetailLng_9}}, type: "{{RetailStoretype_9}}" },
+{ storeId: "{{RetailStoreId_10}}", lat: {{RetailLat_10}}, lng: {{RetailLng_10}}, type: "{{RetailStoretype_10}}" },
+{ storeId: "{{RetailStoreId_11}}", lat: {{RetailLat_11}}, lng: {{RetailLng_11}}, type: "{{RetailStoretype_11}}" },
+{ storeId: "{{RetailStoreId_12}}", lat: {{RetailLat_12}}, lng: {{RetailLng_12}}, type: "{{RetailStoretype_12}}" },
+{ storeId: "{{RetailStoreId_13}}", lat: {{RetailLat_13}}, lng: {{RetailLng_13}}, type: "{{RetailStoretype_13}}" },
+{ storeId: "{{RetailStoreId_14}}", lat: {{RetailLat_14}}, lng: {{RetailLng_14}}, type: "{{RetailStoretype_14}}" },
+{ storeId: "{{RetailStoreId_15}}", lat: {{RetailLat_15}}, lng: {{RetailLng_15}}, type: "{{RetailStoretype_15}}" },
+{ storeId: "{{RetailStoreId_16}}", lat: {{RetailLat_16}}, lng: {{RetailLng_16}}, type: "{{RetailStoretype_16}}" },
+{ storeId: "{{RetailStoreId_17}}", lat: {{RetailLat_17}}, lng: {{RetailLng_17}}, type: "{{RetailStoretype_17}}" },
+{ storeId: "{{RetailStoreId_18}}", lat: {{RetailLat_18}}, lng: {{RetailLng_18}}, type: "{{RetailStoretype_18}}" },
+{ storeId: "{{RetailStoreId_19}}", lat: {{RetailLat_19}}, lng: {{RetailLng_19}}, type: "{{RetailStoretype_19}}" },
+{ storeId: "{{RetailStoreId_20}}", lat: {{RetailLat_20}}, lng: {{RetailLng_20}}, type: "{{RetailStoretype_20}}" },
+{ storeId: "{{RetailStoreId_21}}", lat: {{RetailLat_21}}, lng: {{RetailLng_21}}, type: "{{RetailStoretype_21}}" },
+{ storeId: "{{RetailStoreId_22}}", lat: {{RetailLat_22}}, lng: {{RetailLng_22}}, type: "{{RetailStoretype_22}}" },
+{ storeId: "{{RetailStoreId_23}}", lat: {{RetailLat_23}}, lng: {{RetailLng_23}}, type: "{{RetailStoretype_23}}" },
+{ storeId: "{{RetailStoreId_24}}", lat: {{RetailLat_24}}, lng: {{RetailLng_24}}, type: "{{RetailStoretype_24}}" },
+{ storeId: "{{RetailStoreId_25}}", lat: {{RetailLat_25}}, lng: {{RetailLng_25}}, type: "{{RetailStoretype_25}}" },
+{ storeId: "{{RetailStoreId_26}}", lat: {{RetailLat_26}}, lng: {{RetailLng_26}}, type: "{{RetailStoretype_26}}" },
+{ storeId: "{{RetailStoreId_27}}", lat: {{RetailLat_27}}, lng: {{RetailLng_27}}, type: "{{RetailStoretype_27}}" },
+{ storeId: "{{RetailStoreId_28}}", lat: {{RetailLat_28}}, lng: {{RetailLng_28}}, type: "{{RetailStoretype_28}}" },
+{ storeId: "{{RetailStoreId_29}}", lat: {{RetailLat_29}}, lng: {{RetailLng_29}}, type: "{{RetailStoretype_29}}" },
+{ storeId: "{{RetailStoreId_30}}", lat: {{RetailLat_30}}, lng: {{RetailLng_30}}, type: "{{RetailStoretype_30}}" },
+{ storeId: "{{RetailStoreId_31}}", lat: {{RetailLat_31}}, lng: {{RetailLng_31}}, type: "{{RetailStoretype_31}}" },
+{ storeId: "{{RetailStoreId_32}}", lat: {{RetailLat_32}}, lng: {{RetailLng_32}}, type: "{{RetailStoretype_32}}" },
+{ storeId: "{{RetailStoreId_33}}", lat: {{RetailLat_33}}, lng: {{RetailLng_33}}, type: "{{RetailStoretype_33}}" },
+{ storeId: "{{RetailStoreId_34}}", lat: {{RetailLat_34}}, lng: {{RetailLng_34}}, type: "{{RetailStoretype_34}}" },
+{ storeId: "{{RetailStoreId_35}}", lat: {{RetailLat_35}}, lng: {{RetailLng_35}}, type: "{{RetailStoretype_35}}" },
+{ storeId: "{{RetailStoreId_36}}", lat: {{RetailLat_36}}, lng: {{RetailLng_36}}, type: "{{RetailStoretype_36}}" },
+{ storeId: "{{RetailStoreId_37}}", lat: {{RetailLat_37}}, lng: {{RetailLng_37}}, type: "{{RetailStoretype_37}}" },
+{ storeId: "{{RetailStoreId_38}}", lat: {{RetailLat_38}}, lng: {{RetailLng_38}}, type: "{{RetailStoretype_38}}" },
+{ storeId: "{{RetailStoreId_39}}", lat: {{RetailLat_39}}, lng: {{RetailLng_39}}, type: "{{RetailStoretype_39}}" },
+{ storeId: "{{RetailStoreId_40}}", lat: {{RetailLat_40}}, lng: {{RetailLng_40}}, type: "{{RetailStoretype_40}}" },
+{ storeId: "{{RetailStoreId_41}}", lat: {{RetailLat_41}}, lng: {{RetailLng_41}}, type: "{{RetailStoretype_41}}" },
+{ storeId: "{{RetailStoreId_42}}", lat: {{RetailLat_42}}, lng: {{RetailLng_42}}, type: "{{RetailStoretype_42}}" },
+{ storeId: "{{RetailStoreId_43}}", lat: {{RetailLat_43}}, lng: {{RetailLng_43}}, type: "{{RetailStoretype_43}}" },
+{ storeId: "{{RetailStoreId_44}}", lat: {{RetailLat_44}}, lng: {{RetailLng_44}}, type: "{{RetailStoretype_44}}" },
+{ storeId: "{{RetailStoreId_45}}", lat: {{RetailLat_45}}, lng: {{RetailLng_45}}, type: "{{RetailStoretype_45}}" },
+{ storeId: "{{RetailStoreId_46}}", lat: {{RetailLat_46}}, lng: {{RetailLng_46}}, type: "{{RetailStoretype_46}}" },
+{ storeId: "{{RetailStoreId_47}}", lat: {{RetailLat_47}}, lng: {{RetailLng_47}}, type: "{{RetailStoretype_47}}" },
+{ storeId: "{{RetailStoreId_48}}", lat: {{RetailLat_48}}, lng: {{RetailLng_48}}, type: "{{RetailStoretype_48}}" },
+{ storeId: "{{RetailStoreId_49}}", lat: {{RetailLat_49}}, lng: {{RetailLng_49}}, type: "{{RetailStoretype_49}}" },
+{ storeId: "{{RetailStoreId_50}}", lat: {{RetailLat_50}}, lng: {{RetailLng_50}}, type: "{{RetailStoretype_50}}" },
+{ storeId: "{{RetailStoreId_51}}", lat: {{RetailLat_51}}, lng: {{RetailLng_51}}, type: "{{RetailStoretype_51}}" },
+{ storeId: "{{RetailStoreId_52}}", lat: {{RetailLat_52}}, lng: {{RetailLng_52}}, type: "{{RetailStoretype_52}}" },
+{ storeId: "{{RetailStoreId_53}}", lat: {{RetailLat_53}}, lng: {{RetailLng_53}}, type: "{{RetailStoretype_53}}" },
+{ storeId: "{{RetailStoreId_54}}", lat: {{RetailLat_54}}, lng: {{RetailLng_54}}, type: "{{RetailStoretype_54}}" },
+{ storeId: "{{RetailStoreId_55}}", lat: {{RetailLat_55}}, lng: {{RetailLng_55}}, type: "{{RetailStoretype_55}}" },
+{ storeId: "{{RetailStoreId_56}}", lat: {{RetailLat_56}}, lng: {{RetailLng_56}}, type: "{{RetailStoretype_56}}" },
+{ storeId: "{{RetailStoreId_57}}", lat: {{RetailLat_57}}, lng: {{RetailLng_57}}, type: "{{RetailStoretype_57}}" },
+{ storeId: "{{RetailStoreId_58}}", lat: {{RetailLat_58}}, lng: {{RetailLng_58}}, type: "{{RetailStoretype_58}}" },
+{ storeId: "{{RetailStoreId_59}}", lat: {{RetailLat_59}}, lng: {{RetailLng_59}}, type: "{{RetailStoretype_59}}" },
+{ storeId: "{{RetailStoreId_60}}", lat: {{RetailLat_60}}, lng: {{RetailLng_60}}, type: "{{RetailStoretype_60}}" },
+{ storeId: "{{RetailStoreId_61}}", lat: {{RetailLat_61}}, lng: {{RetailLng_61}}, type: "{{RetailStoretype_61}}" },
+{ storeId: "{{RetailStoreId_62}}", lat: {{RetailLat_62}}, lng: {{RetailLng_62}}, type: "{{RetailStoretype_62}}" },
+{ storeId: "{{RetailStoreId_63}}", lat: {{RetailLat_63}}, lng: {{RetailLng_63}}, type: "{{RetailStoretype_63}}" },
+{ storeId: "{{RetailStoreId_64}}", lat: {{RetailLat_64}}, lng: {{RetailLng_64}}, type: "{{RetailStoretype_64}}" },
+{ storeId: "{{RetailStoreId_65}}", lat: {{RetailLat_65}}, lng: {{RetailLng_65}}, type: "{{RetailStoretype_65}}" },
+{ storeId: "{{RetailStoreId_66}}", lat: {{RetailLat_66}}, lng: {{RetailLng_66}}, type: "{{RetailStoretype_66}}" },
+{ storeId: "{{RetailStoreId_67}}", lat: {{RetailLat_67}}, lng: {{RetailLng_67}}, type: "{{RetailStoretype_67}}" },
+{ storeId: "{{RetailStoreId_68}}", lat: {{RetailLat_68}}, lng: {{RetailLng_68}}, type: "{{RetailStoretype_68}}" },
+{ storeId: "{{RetailStoreId_69}}", lat: {{RetailLat_69}}, lng: {{RetailLng_69}}, type: "{{RetailStoretype_69}}" },
+{ storeId: "{{RetailStoreId_70}}", lat: {{RetailLat_70}}, lng: {{RetailLng_70}}, type: "{{RetailStoretype_70}}" },
+{ storeId: "{{RetailStoreId_71}}", lat: {{RetailLat_71}}, lng: {{RetailLng_71}}, type: "{{RetailStoretype_71}}" },
+{ storeId: "{{RetailStoreId_72}}", lat: {{RetailLat_72}}, lng: {{RetailLng_72}}, type: "{{RetailStoretype_72}}" },
+{ storeId: "{{RetailStoreId_73}}", lat: {{RetailLat_73}}, lng: {{RetailLng_73}}, type: "{{RetailStoretype_73}}" },
+{ storeId: "{{RetailStoreId_74}}", lat: {{RetailLat_74}}, lng: {{RetailLng_74}}, type: "{{RetailStoretype_74}}" },
+{ storeId: "{{RetailStoreId_75}}", lat: {{RetailLat_75}}, lng: {{RetailLng_75}}, type: "{{RetailStoretype_75}}" },
+{ storeId: "{{RetailStoreId_76}}", lat: {{RetailLat_76}}, lng: {{RetailLng_76}}, type: "{{RetailStoretype_76}}" },
+{ storeId: "{{RetailStoreId_77}}", lat: {{RetailLat_77}}, lng: {{RetailLng_77}}, type: "{{RetailStoretype_77}}" },
+{ storeId: "{{RetailStoreId_78}}", lat: {{RetailLat_78}}, lng: {{RetailLng_78}}, type: "{{RetailStoretype_78}}" },
+{ storeId: "{{RetailStoreId_79}}", lat: {{RetailLat_79}}, lng: {{RetailLng_79}}, type: "{{RetailStoretype_79}}" },
+{ storeId: "{{RetailStoreId_80}}", lat: {{RetailLat_80}}, lng: {{RetailLng_80}}, type: "{{RetailStoretype_80}}" },
+{ storeId: "{{RetailStoreId_81}}", lat: {{RetailLat_81}}, lng: {{RetailLng_81}}, type: "{{RetailStoretype_81}}" },
+{ storeId: "{{RetailStoreId_82}}", lat: {{RetailLat_82}}, lng: {{RetailLng_82}}, type: "{{RetailStoretype_82}}" },
+{ storeId: "{{RetailStoreId_83}}", lat: {{RetailLat_83}}, lng: {{RetailLng_83}}, type: "{{RetailStoretype_83}}" },
+{ storeId: "{{RetailStoreId_84}}", lat: {{RetailLat_84}}, lng: {{RetailLng_84}}, type: "{{RetailStoretype_84}}" },
+{ storeId: "{{RetailStoreId_85}}", lat: {{RetailLat_85}}, lng: {{RetailLng_85}}, type: "{{RetailStoretype_85}}" },
+{ storeId: "{{RetailStoreId_86}}", lat: {{RetailLat_86}}, lng: {{RetailLng_86}}, type: "{{RetailStoretype_86}}" },
+{ storeId: "{{RetailStoreId_87}}", lat: {{RetailLat_87}}, lng: {{RetailLng_87}}, type: "{{RetailStoretype_87}}" },
+{ storeId: "{{RetailStoreId_88}}", lat: {{RetailLat_88}}, lng: {{RetailLng_88}}, type: "{{RetailStoretype_88}}" },
+{ storeId: "{{RetailStoreId_89}}", lat: {{RetailLat_89}}, lng: {{RetailLng_89}}, type: "{{RetailStoretype_89}}" },
+{ storeId: "{{RetailStoreId_90}}", lat: {{RetailLat_90}}, lng: {{RetailLng_90}}, type: "{{RetailStoretype_90}}" },
+{ storeId: "{{RetailStoreId_91}}", lat: {{RetailLat_91}}, lng: {{RetailLng_91}}, type: "{{RetailStoretype_91}}" },
+{ storeId: "{{RetailStoreId_92}}", lat: {{RetailLat_92}}, lng: {{RetailLng_92}}, type: "{{RetailStoretype_92}}" },
+{ storeId: "{{RetailStoreId_93}}", lat: {{RetailLat_93}}, lng: {{RetailLng_93}}, type: "{{RetailStoretype_93}}" },
+{ storeId: "{{RetailStoreId_94}}", lat: {{RetailLat_94}}, lng: {{RetailLng_94}}, type: "{{RetailStoretype_94}}" },
+{ storeId: "{{RetailStoreId_95}}", lat: {{RetailLat_95}}, lng: {{RetailLng_95}}, type: "{{RetailStoretype_95}}" },
+{ storeId: "{{RetailStoreId_96}}", lat: {{RetailLat_96}}, lng: {{RetailLng_96}}, type: "{{RetailStoretype_96}}" },
+{ storeId: "{{RetailStoreId_97}}", lat: {{RetailLat_97}}, lng: {{RetailLng_97}}, type: "{{RetailStoretype_97}}" },
+{ storeId: "{{RetailStoreId_98}}", lat: {{RetailLat_98}}, lng: {{RetailLng_98}}, type: "{{RetailStoretype_98}}" },
+{ storeId: "{{RetailStoreId_99}}", lat: {{RetailLat_99}}, lng: {{RetailLng_99}}, type: "{{RetailStoretype_99}}" },
+{ storeId: "{{RetailStoreId_100}}", lat: {{RetailLat_100}}, lng: {{RetailLng_100}}, type: "{{RetailStoretype_100}}" },
+{ storeId: "{{RetailStoreId_101}}", lat: {{RetailLat_101}}, lng: {{RetailLng_101}}, type: "{{RetailStoretype_101}}" },
+{ storeId: "{{RetailStoreId_102}}", lat: {{RetailLat_102}}, lng: {{RetailLng_102}}, type: "{{RetailStoretype_102}}" },
+{ storeId: "{{RetailStoreId_103}}", lat: {{RetailLat_103}}, lng: {{RetailLng_103}}, type: "{{RetailStoretype_103}}" },
+{ storeId: "{{RetailStoreId_104}}", lat: {{RetailLat_104}}, lng: {{RetailLng_104}}, type: "{{RetailStoretype_104}}" },
+{ storeId: "{{RetailStoreId_105}}", lat: {{RetailLat_105}}, lng: {{RetailLng_105}}, type: "{{RetailStoretype_105}}" },
+{ storeId: "{{RetailStoreId_106}}", lat: {{RetailLat_106}}, lng: {{RetailLng_106}}, type: "{{RetailStoretype_106}}" },
+{ storeId: "{{RetailStoreId_107}}", lat: {{RetailLat_107}}, lng: {{RetailLng_107}}, type: "{{RetailStoretype_107}}" },
+{ storeId: "{{RetailStoreId_108}}", lat: {{RetailLat_108}}, lng: {{RetailLng_108}}, type: "{{RetailStoretype_108}}" },
+{ storeId: "{{RetailStoreId_109}}", lat: {{RetailLat_109}}, lng: {{RetailLng_109}}, type: "{{RetailStoretype_109}}" },
+{ storeId: "{{RetailStoreId_110}}", lat: {{RetailLat_110}}, lng: {{RetailLng_110}}, type: "{{RetailStoretype_110}}" },
+{ storeId: "{{RetailStoreId_111}}", lat: {{RetailLat_111}}, lng: {{RetailLng_111}}, type: "{{RetailStoretype_111}}" },
+{ storeId: "{{RetailStoreId_112}}", lat: {{RetailLat_112}}, lng: {{RetailLng_112}}, type: "{{RetailStoretype_112}}" },
+{ storeId: "{{RetailStoreId_113}}", lat: {{RetailLat_113}}, lng: {{RetailLng_113}}, type: "{{RetailStoretype_113}}" },
+{ storeId: "{{RetailStoreId_114}}", lat: {{RetailLat_114}}, lng: {{RetailLng_114}}, type: "{{RetailStoretype_114}}" },
+{ storeId: "{{RetailStoreId_115}}", lat: {{RetailLat_115}}, lng: {{RetailLng_115}}, type: "{{RetailStoretype_115}}" },
+{ storeId: "{{RetailStoreId_116}}", lat: {{RetailLat_116}}, lng: {{RetailLng_116}}, type: "{{RetailStoretype_116}}" },
+{ storeId: "{{RetailStoreId_117}}", lat: {{RetailLat_117}}, lng: {{RetailLng_117}}, type: "{{RetailStoretype_117}}" },
+{ storeId: "{{RetailStoreId_118}}", lat: {{RetailLat_118}}, lng: {{RetailLng_118}}, type: "{{RetailStoretype_118}}" },
+{ storeId: "{{RetailStoreId_119}}", lat: {{RetailLat_119}}, lng: {{RetailLng_119}}, type: "{{RetailStoretype_119}}" },
+{ storeId: "{{RetailStoreId_120}}", lat: {{RetailLat_120}}, lng: {{RetailLng_120}}, type: "{{RetailStoretype_120}}" },
+{ storeId: "{{RetailStoreId_121}}", lat: {{RetailLat_121}}, lng: {{RetailLng_121}}, type: "{{RetailStoretype_121}}" },
+{ storeId: "{{RetailStoreId_122}}", lat: {{RetailLat_122}}, lng: {{RetailLng_122}}, type: "{{RetailStoretype_122}}" },
+{ storeId: "{{RetailStoreId_123}}", lat: {{RetailLat_123}}, lng: {{RetailLng_123}}, type: "{{RetailStoretype_123}}" },
+{ storeId: "{{RetailStoreId_124}}", lat: {{RetailLat_124}}, lng: {{RetailLng_124}}, type: "{{RetailStoretype_124}}" },
+{ storeId: "{{RetailStoreId_125}}", lat: {{RetailLat_125}}, lng: {{RetailLng_125}}, type: "{{RetailStoretype_125}}" },
+{ storeId: "{{RetailStoreId_126}}", lat: {{RetailLat_126}}, lng: {{RetailLng_126}}, type: "{{RetailStoretype_126}}" },
+{ storeId: "{{RetailStoreId_127}}", lat: {{RetailLat_127}}, lng: {{RetailLng_127}}, type: "{{RetailStoretype_127}}" },
+{ storeId: "{{RetailStoreId_128}}", lat: {{RetailLat_128}}, lng: {{RetailLng_128}}, type: "{{RetailStoretype_128}}" },
+{ storeId: "{{RetailStoreId_129}}", lat: {{RetailLat_129}}, lng: {{RetailLng_129}}, type: "{{RetailStoretype_129}}" },
+{ storeId: "{{RetailStoreId_130}}", lat: {{RetailLat_130}}, lng: {{RetailLng_130}}, type: "{{RetailStoretype_130}}" },
+{ storeId: "{{RetailStoreId_131}}", lat: {{RetailLat_131}}, lng: {{RetailLng_131}}, type: "{{RetailStoretype_131}}" },
+{ storeId: "{{RetailStoreId_132}}", lat: {{RetailLat_132}}, lng: {{RetailLng_132}}, type: "{{RetailStoretype_132}}" },
+{ storeId: "{{RetailStoreId_133}}", lat: {{RetailLat_133}}, lng: {{RetailLng_133}}, type: "{{RetailStoretype_133}}" },
+{ storeId: "{{RetailStoreId_134}}", lat: {{RetailLat_134}}, lng: {{RetailLng_134}}, type: "{{RetailStoretype_134}}" },
+{ storeId: "{{RetailStoreId_135}}", lat: {{RetailLat_135}}, lng: {{RetailLng_135}}, type: "{{RetailStoretype_135}}" },
+{ storeId: "{{RetailStoreId_136}}", lat: {{RetailLat_136}}, lng: {{RetailLng_136}}, type: "{{RetailStoretype_136}}" },
+{ storeId: "{{RetailStoreId_137}}", lat: {{RetailLat_137}}, lng: {{RetailLng_137}}, type: "{{RetailStoretype_137}}" },
+{ storeId: "{{RetailStoreId_138}}", lat: {{RetailLat_138}}, lng: {{RetailLng_138}}, type: "{{RetailStoretype_138}}" },
+{ storeId: "{{RetailStoreId_139}}", lat: {{RetailLat_139}}, lng: {{RetailLng_139}}, type: "{{RetailStoretype_139}}" },
+{ storeId: "{{RetailStoreId_140}}", lat: {{RetailLat_140}}, lng: {{RetailLng_140}}, type: "{{RetailStoretype_140}}" },
+{ storeId: "{{RetailStoreId_141}}", lat: {{RetailLat_141}}, lng: {{RetailLng_141}}, type: "{{RetailStoretype_141}}" },
+{ storeId: "{{RetailStoreId_142}}", lat: {{RetailLat_142}}, lng: {{RetailLng_142}}, type: "{{RetailStoretype_142}}" },
+{ storeId: "{{RetailStoreId_143}}", lat: {{RetailLat_143}}, lng: {{RetailLng_143}}, type: "{{RetailStoretype_143}}" },
+{ storeId: "{{RetailStoreId_144}}", lat: {{RetailLat_144}}, lng: {{RetailLng_144}}, type: "{{RetailStoretype_144}}" },
+{ storeId: "{{RetailStoreId_145}}", lat: {{RetailLat_145}}, lng: {{RetailLng_145}}, type: "{{RetailStoretype_145}}" },
+{ storeId: "{{RetailStoreId_146}}", lat: {{RetailLat_146}}, lng: {{RetailLng_146}}, type: "{{RetailStoretype_146}}" },
+{ storeId: "{{RetailStoreId_147}}", lat: {{RetailLat_147}}, lng: {{RetailLng_147}}, type: "{{RetailStoretype_147}}" },
+{ storeId: "{{RetailStoreId_148}}", lat: {{RetailLat_148}}, lng: {{RetailLng_148}}, type: "{{RetailStoretype_148}}" },
+{ storeId: "{{RetailStoreId_149}}", lat: {{RetailLat_149}}, lng: {{RetailLng_149}}, type: "{{RetailStoretype_149}}" },
+{ storeId: "{{RetailStoreId_150}}", lat: {{RetailLat_150}}, lng: {{RetailLng_150}}, type: "{{RetailStoretype_150}}" },
+{ storeId: "{{RetailStoreId_151}}", lat: {{RetailLat_151}}, lng: {{RetailLng_151}}, type: "{{RetailStoretype_151}}" },
+{ storeId: "{{RetailStoreId_152}}", lat: {{RetailLat_152}}, lng: {{RetailLng_152}}, type: "{{RetailStoretype_152}}" },
+{ storeId: "{{RetailStoreId_153}}", lat: {{RetailLat_153}}, lng: {{RetailLng_153}}, type: "{{RetailStoretype_153}}" },
+{ storeId: "{{RetailStoreId_154}}", lat: {{RetailLat_154}}, lng: {{RetailLng_154}}, type: "{{RetailStoretype_154}}" },
+{ storeId: "{{RetailStoreId_155}}", lat: {{RetailLat_155}}, lng: {{RetailLng_155}}, type: "{{RetailStoretype_155}}" },
+{ storeId: "{{RetailStoreId_156}}", lat: {{RetailLat_156}}, lng: {{RetailLng_156}}, type: "{{RetailStoretype_156}}" },
+{ storeId: "{{RetailStoreId_157}}", lat: {{RetailLat_157}}, lng: {{RetailLng_157}}, type: "{{RetailStoretype_157}}" },
+{ storeId: "{{RetailStoreId_158}}", lat: {{RetailLat_158}}, lng: {{RetailLng_158}}, type: "{{RetailStoretype_158}}" },
+{ storeId: "{{RetailStoreId_159}}", lat: {{RetailLat_159}}, lng: {{RetailLng_159}}, type: "{{RetailStoretype_159}}" },
+{ storeId: "{{RetailStoreId_160}}", lat: {{RetailLat_160}}, lng: {{RetailLng_160}}, type: "{{RetailStoretype_160}}" },
+{ storeId: "{{RetailStoreId_161}}", lat: {{RetailLat_161}}, lng: {{RetailLng_161}}, type: "{{RetailStoretype_161}}" },
+{ storeId: "{{RetailStoreId_162}}", lat: {{RetailLat_162}}, lng: {{RetailLng_162}}, type: "{{RetailStoretype_162}}" },
+{ storeId: "{{RetailStoreId_163}}", lat: {{RetailLat_163}}, lng: {{RetailLng_163}}, type: "{{RetailStoretype_163}}" },
+{ storeId: "{{RetailStoreId_164}}", lat: {{RetailLat_164}}, lng: {{RetailLng_164}}, type: "{{RetailStoretype_164}}" },
+{ storeId: "{{RetailStoreId_165}}", lat: {{RetailLat_165}}, lng: {{RetailLng_165}}, type: "{{RetailStoretype_165}}" },
+{ storeId: "{{RetailStoreId_166}}", lat: {{RetailLat_166}}, lng: {{RetailLng_166}}, type: "{{RetailStoretype_166}}" },
+{ storeId: "{{RetailStoreId_167}}", lat: {{RetailLat_167}}, lng: {{RetailLng_167}}, type: "{{RetailStoretype_167}}" },
+{ storeId: "{{RetailStoreId_168}}", lat: {{RetailLat_168}}, lng: {{RetailLng_168}}, type: "{{RetailStoretype_168}}" },
+{ storeId: "{{RetailStoreId_169}}", lat: {{RetailLat_169}}, lng: {{RetailLng_169}}, type: "{{RetailStoretype_169}}" },
+{ storeId: "{{RetailStoreId_170}}", lat: {{RetailLat_170}}, lng: {{RetailLng_170}}, type: "{{RetailStoretype_170}}" },
+{ storeId: "{{RetailStoreId_171}}", lat: {{RetailLat_171}}, lng: {{RetailLng_171}}, type: "{{RetailStoretype_171}}" },
+{ storeId: "{{RetailStoreId_172}}", lat: {{RetailLat_172}}, lng: {{RetailLng_172}}, type: "{{RetailStoretype_172}}" },
+{ storeId: "{{RetailStoreId_173}}", lat: {{RetailLat_173}}, lng: {{RetailLng_173}}, type: "{{RetailStoretype_173}}" },
+{ storeId: "{{RetailStoreId_174}}", lat: {{RetailLat_174}}, lng: {{RetailLng_174}}, type: "{{RetailStoretype_174}}" },
+{ storeId: "{{RetailStoreId_175}}", lat: {{RetailLat_175}}, lng: {{RetailLng_175}}, type: "{{RetailStoretype_175}}" },
+{ storeId: "{{RetailStoreId_176}}", lat: {{RetailLat_176}}, lng: {{RetailLng_176}}, type: "{{RetailStoretype_176}}" },
+{ storeId: "{{RetailStoreId_177}}", lat: {{RetailLat_177}}, lng: {{RetailLng_177}}, type: "{{RetailStoretype_177}}" },
+{ storeId: "{{RetailStoreId_178}}", lat: {{RetailLat_178}}, lng: {{RetailLng_178}}, type: "{{RetailStoretype_178}}" },
+{ storeId: "{{RetailStoreId_179}}", lat: {{RetailLat_179}}, lng: {{RetailLng_179}}, type: "{{RetailStoretype_179}}" },
+{ storeId: "{{RetailStoreId_180}}", lat: {{RetailLat_180}}, lng: {{RetailLng_180}}, type: "{{RetailStoretype_180}}" },
+{ storeId: "{{RetailStoreId_181}}", lat: {{RetailLat_181}}, lng: {{RetailLng_181}}, type: "{{RetailStoretype_181}}" },
+{ storeId: "{{RetailStoreId_182}}", lat: {{RetailLat_182}}, lng: {{RetailLng_182}}, type: "{{RetailStoretype_182}}" },
+{ storeId: "{{RetailStoreId_183}}", lat: {{RetailLat_183}}, lng: {{RetailLng_183}}, type: "{{RetailStoretype_183}}" },
+{ storeId: "{{RetailStoreId_184}}", lat: {{RetailLat_184}}, lng: {{RetailLng_184}}, type: "{{RetailStoretype_184}}" },
+{ storeId: "{{RetailStoreId_185}}", lat: {{RetailLat_185}}, lng: {{RetailLng_185}}, type: "{{RetailStoretype_185}}" },
+{ storeId: "{{RetailStoreId_186}}", lat: {{RetailLat_186}}, lng: {{RetailLng_186}}, type: "{{RetailStoretype_186}}" },
+{ storeId: "{{RetailStoreId_187}}", lat: {{RetailLat_187}}, lng: {{RetailLng_187}}, type: "{{RetailStoretype_187}}" },
+{ storeId: "{{RetailStoreId_188}}", lat: {{RetailLat_188}}, lng: {{RetailLng_188}}, type: "{{RetailStoretype_188}}" },
+{ storeId: "{{RetailStoreId_189}}", lat: {{RetailLat_189}}, lng: {{RetailLng_189}}, type: "{{RetailStoretype_189}}" },
+{ storeId: "{{RetailStoreId_190}}", lat: {{RetailLat_190}}, lng: {{RetailLng_190}}, type: "{{RetailStoretype_190}}" },
+{ storeId: "{{RetailStoreId_191}}", lat: {{RetailLat_191}}, lng: {{RetailLng_191}}, type: "{{RetailStoretype_191}}" },
+{ storeId: "{{RetailStoreId_192}}", lat: {{RetailLat_192}}, lng: {{RetailLng_192}}, type: "{{RetailStoretype_192}}" },
+{ storeId: "{{RetailStoreId_193}}", lat: {{RetailLat_193}}, lng: {{RetailLng_193}}, type: "{{RetailStoretype_193}}" },
+{ storeId: "{{RetailStoreId_194}}", lat: {{RetailLat_194}}, lng: {{RetailLng_194}}, type: "{{RetailStoretype_194}}" },
+{ storeId: "{{RetailStoreId_195}}", lat: {{RetailLat_195}}, lng: {{RetailLng_195}}, type: "{{RetailStoretype_195}}" },
+{ storeId: "{{RetailStoreId_196}}", lat: {{RetailLat_196}}, lng: {{RetailLng_196}}, type: "{{RetailStoretype_196}}" },
+{ storeId: "{{RetailStoreId_197}}", lat: {{RetailLat_197}}, lng: {{RetailLng_197}}, type: "{{RetailStoretype_197}}" },
+{ storeId: "{{RetailStoreId_198}}", lat: {{RetailLat_198}}, lng: {{RetailLng_198}}, type: "{{RetailStoretype_198}}" },
+{ storeId: "{{RetailStoreId_199}}", lat: {{RetailLat_199}}, lng: {{RetailLng_199}}, type: "{{RetailStoretype_199}}" },
+{ storeId: "{{RetailStoreId_200}}", lat: {{RetailLat_200}}, lng: {{RetailLng_200}}, type: "{{RetailStoretype_200}}" },
+{ storeId: "{{RetailStoreId_201}}", lat: {{RetailLat_201}}, lng: {{RetailLng_201}}, type: "{{RetailStoretype_201}}" },
+{ storeId: "{{RetailStoreId_202}}", lat: {{RetailLat_202}}, lng: {{RetailLng_202}}, type: "{{RetailStoretype_202}}" },
+{ storeId: "{{RetailStoreId_203}}", lat: {{RetailLat_203}}, lng: {{RetailLng_203}}, type: "{{RetailStoretype_203}}" },
+{ storeId: "{{RetailStoreId_204}}", lat: {{RetailLat_204}}, lng: {{RetailLng_204}}, type: "{{RetailStoretype_204}}" },
+{ storeId: "{{RetailStoreId_205}}", lat: {{RetailLat_205}}, lng: {{RetailLng_205}}, type: "{{RetailStoretype_205}}" },
+{ storeId: "{{RetailStoreId_206}}", lat: {{RetailLat_206}}, lng: {{RetailLng_206}}, type: "{{RetailStoretype_206}}" },
+{ storeId: "{{RetailStoreId_207}}", lat: {{RetailLat_207}}, lng: {{RetailLng_207}}, type: "{{RetailStoretype_207}}" },
+{ storeId: "{{RetailStoreId_208}}", lat: {{RetailLat_208}}, lng: {{RetailLng_208}}, type: "{{RetailStoretype_208}}" },
+{ storeId: "{{RetailStoreId_209}}", lat: {{RetailLat_209}}, lng: {{RetailLng_209}}, type: "{{RetailStoretype_209}}" },
+{ storeId: "{{RetailStoreId_210}}", lat: {{RetailLat_210}}, lng: {{RetailLng_210}}, type: "{{RetailStoretype_210}}" },
+{ storeId: "{{RetailStoreId_211}}", lat: {{RetailLat_211}}, lng: {{RetailLng_211}}, type: "{{RetailStoretype_211}}" },
+{ storeId: "{{RetailStoreId_212}}", lat: {{RetailLat_212}}, lng: {{RetailLng_212}}, type: "{{RetailStoretype_212}}" },
+{ storeId: "{{RetailStoreId_213}}", lat: {{RetailLat_213}}, lng: {{RetailLng_213}}, type: "{{RetailStoretype_213}}" },
+{ storeId: "{{RetailStoreId_214}}", lat: {{RetailLat_214}}, lng: {{RetailLng_214}}, type: "{{RetailStoretype_214}}" },
+{ storeId: "{{RetailStoreId_215}}", lat: {{RetailLat_215}}, lng: {{RetailLng_215}}, type: "{{RetailStoretype_215}}" },
+{ storeId: "{{RetailStoreId_216}}", lat: {{RetailLat_216}}, lng: {{RetailLng_216}}, type: "{{RetailStoretype_216}}" },
+{ storeId: "{{RetailStoreId_217}}", lat: {{RetailLat_217}}, lng: {{RetailLng_217}}, type: "{{RetailStoretype_217}}" },
+{ storeId: "{{RetailStoreId_218}}", lat: {{RetailLat_218}}, lng: {{RetailLng_218}}, type: "{{RetailStoretype_218}}" },
+{ storeId: "{{RetailStoreId_219}}", lat: {{RetailLat_219}}, lng: {{RetailLng_219}}, type: "{{RetailStoretype_219}}" },
+{ storeId: "{{RetailStoreId_220}}", lat: {{RetailLat_220}}, lng: {{RetailLng_220}}, type: "{{RetailStoretype_220}}" },
+{ storeId: "{{RetailStoreId_221}}", lat: {{RetailLat_221}}, lng: {{RetailLng_221}}, type: "{{RetailStoretype_221}}" },
+{ storeId: "{{RetailStoreId_222}}", lat: {{RetailLat_222}}, lng: {{RetailLng_222}}, type: "{{RetailStoretype_222}}" },
+{ storeId: "{{RetailStoreId_223}}", lat: {{RetailLat_223}}, lng: {{RetailLng_223}}, type: "{{RetailStoretype_223}}" },
+{ storeId: "{{RetailStoreId_224}}", lat: {{RetailLat_224}}, lng: {{RetailLng_224}}, type: "{{RetailStoretype_224}}" },
+{ storeId: "{{RetailStoreId_225}}", lat: {{RetailLat_225}}, lng: {{RetailLng_225}}, type: "{{RetailStoretype_225}}" },
+{ storeId: "{{RetailStoreId_226}}", lat: {{RetailLat_226}}, lng: {{RetailLng_226}}, type: "{{RetailStoretype_226}}" },
+{ storeId: "{{RetailStoreId_227}}", lat: {{RetailLat_227}}, lng: {{RetailLng_227}}, type: "{{RetailStoretype_227}}" },
+{ storeId: "{{RetailStoreId_228}}", lat: {{RetailLat_228}}, lng: {{RetailLng_228}}, type: "{{RetailStoretype_228}}" },
+{ storeId: "{{RetailStoreId_229}}", lat: {{RetailLat_229}}, lng: {{RetailLng_229}}, type: "{{RetailStoretype_229}}" },
+{ storeId: "{{RetailStoreId_230}}", lat: {{RetailLat_230}}, lng: {{RetailLng_230}}, type: "{{RetailStoretype_230}}" },
+{ storeId: "{{RetailStoreId_231}}", lat: {{RetailLat_231}}, lng: {{RetailLng_231}}, type: "{{RetailStoretype_231}}" },
+{ storeId: "{{RetailStoreId_232}}", lat: {{RetailLat_232}}, lng: {{RetailLng_232}}, type: "{{RetailStoretype_232}}" },
+{ storeId: "{{RetailStoreId_233}}", lat: {{RetailLat_233}}, lng: {{RetailLng_233}}, type: "{{RetailStoretype_233}}" },
+{ storeId: "{{RetailStoreId_234}}", lat: {{RetailLat_234}}, lng: {{RetailLng_234}}, type: "{{RetailStoretype_234}}" },
+{ storeId: "{{RetailStoreId_235}}", lat: {{RetailLat_235}}, lng: {{RetailLng_235}}, type: "{{RetailStoretype_235}}" },
+{ storeId: "{{RetailStoreId_236}}", lat: {{RetailLat_236}}, lng: {{RetailLng_236}}, type: "{{RetailStoretype_236}}" },
+{ storeId: "{{RetailStoreId_237}}", lat: {{RetailLat_237}}, lng: {{RetailLng_237}}, type: "{{RetailStoretype_237}}" },
+{ storeId: "{{RetailStoreId_238}}", lat: {{RetailLat_238}}, lng: {{RetailLng_238}}, type: "{{RetailStoretype_238}}" },
+{ storeId: "{{RetailStoreId_239}}", lat: {{RetailLat_239}}, lng: {{RetailLng_239}}, type: "{{RetailStoretype_239}}" },
+{ storeId: "{{RetailStoreId_240}}", lat: {{RetailLat_240}}, lng: {{RetailLng_240}}, type: "{{RetailStoretype_240}}" },
+{ storeId: "{{RetailStoreId_241}}", lat: {{RetailLat_241}}, lng: {{RetailLng_241}}, type: "{{RetailStoretype_241}}" },
+{ storeId: "{{RetailStoreId_242}}", lat: {{RetailLat_242}}, lng: {{RetailLng_242}}, type: "{{RetailStoretype_242}}" },
+{ storeId: "{{RetailStoreId_243}}", lat: {{RetailLat_243}}, lng: {{RetailLng_243}}, type: "{{RetailStoretype_243}}" },
+{ storeId: "{{RetailStoreId_244}}", lat: {{RetailLat_244}}, lng: {{RetailLng_244}}, type: "{{RetailStoretype_244}}" },
+{ storeId: "{{RetailStoreId_245}}", lat: {{RetailLat_245}}, lng: {{RetailLng_245}}, type: "{{RetailStoretype_245}}" },
+{ storeId: "{{RetailStoreId_246}}", lat: {{RetailLat_246}}, lng: {{RetailLng_246}}, type: "{{RetailStoretype_246}}" },
+{ storeId: "{{RetailStoreId_247}}", lat: {{RetailLat_247}}, lng: {{RetailLng_247}}, type: "{{RetailStoretype_247}}" },
+{ storeId: "{{RetailStoreId_248}}", lat: {{RetailLat_248}}, lng: {{RetailLng_248}}, type: "{{RetailStoretype_248}}" },
+{ storeId: "{{RetailStoreId_249}}", lat: {{RetailLat_249}}, lng: {{RetailLng_249}}, type: "{{RetailStoretype_249}}" },
+{ storeId: "{{RetailStoreId_250}}", lat: {{RetailLat_250}}, lng: {{RetailLng_250}}, type: "{{RetailStoretype_250}}" },
+{ storeId: "{{RetailStoreId_251}}", lat: {{RetailLat_251}}, lng: {{RetailLng_251}}, type: "{{RetailStoretype_251}}" },
+{ storeId: "{{RetailStoreId_252}}", lat: {{RetailLat_252}}, lng: {{RetailLng_252}}, type: "{{RetailStoretype_252}}" },
+{ storeId: "{{RetailStoreId_253}}", lat: {{RetailLat_253}}, lng: {{RetailLng_253}}, type: "{{RetailStoretype_253}}" },
+{ storeId: "{{RetailStoreId_254}}", lat: {{RetailLat_254}}, lng: {{RetailLng_254}}, type: "{{RetailStoretype_254}}" },
+{ storeId: "{{RetailStoreId_255}}", lat: {{RetailLat_255}}, lng: {{RetailLng_255}}, type: "{{RetailStoretype_255}}" },
+{ storeId: "{{RetailStoreId_256}}", lat: {{RetailLat_256}}, lng: {{RetailLng_256}}, type: "{{RetailStoretype_256}}" },
+{ storeId: "{{RetailStoreId_257}}", lat: {{RetailLat_257}}, lng: {{RetailLng_257}}, type: "{{RetailStoretype_257}}" },
+{ storeId: "{{RetailStoreId_258}}", lat: {{RetailLat_258}}, lng: {{RetailLng_258}}, type: "{{RetailStoretype_258}}" },
+{ storeId: "{{RetailStoreId_259}}", lat: {{RetailLat_259}}, lng: {{RetailLng_259}}, type: "{{RetailStoretype_259}}" },
+{ storeId: "{{RetailStoreId_260}}", lat: {{RetailLat_260}}, lng: {{RetailLng_260}}, type: "{{RetailStoretype_260}}" },
+{ storeId: "{{RetailStoreId_261}}", lat: {{RetailLat_261}}, lng: {{RetailLng_261}}, type: "{{RetailStoretype_261}}" },
+{ storeId: "{{RetailStoreId_262}}", lat: {{RetailLat_262}}, lng: {{RetailLng_262}}, type: "{{RetailStoretype_262}}" },
+{ storeId: "{{RetailStoreId_263}}", lat: {{RetailLat_263}}, lng: {{RetailLng_263}}, type: "{{RetailStoretype_263}}" },
+{ storeId: "{{RetailStoreId_264}}", lat: {{RetailLat_264}}, lng: {{RetailLng_264}}, type: "{{RetailStoretype_264}}" },
+{ storeId: "{{RetailStoreId_265}}", lat: {{RetailLat_265}}, lng: {{RetailLng_265}}, type: "{{RetailStoretype_265}}" },
+{ storeId: "{{RetailStoreId_266}}", lat: {{RetailLat_266}}, lng: {{RetailLng_266}}, type: "{{RetailStoretype_266}}" },
+{ storeId: "{{RetailStoreId_267}}", lat: {{RetailLat_267}}, lng: {{RetailLng_267}}, type: "{{RetailStoretype_267}}" },
+{ storeId: "{{RetailStoreId_268}}", lat: {{RetailLat_268}}, lng: {{RetailLng_268}}, type: "{{RetailStoretype_268}}" },
+{ storeId: "{{RetailStoreId_269}}", lat: {{RetailLat_269}}, lng: {{RetailLng_269}}, type: "{{RetailStoretype_269}}" },
+{ storeId: "{{RetailStoreId_270}}", lat: {{RetailLat_270}}, lng: {{RetailLng_270}}, type: "{{RetailStoretype_270}}" },
+{ storeId: "{{RetailStoreId_271}}", lat: {{RetailLat_271}}, lng: {{RetailLng_271}}, type: "{{RetailStoretype_271}}" },
+{ storeId: "{{RetailStoreId_272}}", lat: {{RetailLat_272}}, lng: {{RetailLng_272}}, type: "{{RetailStoretype_272}}" },
+{ storeId: "{{RetailStoreId_273}}", lat: {{RetailLat_273}}, lng: {{RetailLng_273}}, type: "{{RetailStoretype_273}}" },
+{ storeId: "{{RetailStoreId_274}}", lat: {{RetailLat_274}}, lng: {{RetailLng_274}}, type: "{{RetailStoretype_274}}" },
+{ storeId: "{{RetailStoreId_275}}", lat: {{RetailLat_275}}, lng: {{RetailLng_275}}, type: "{{RetailStoretype_275}}" },
+{ storeId: "{{RetailStoreId_276}}", lat: {{RetailLat_276}}, lng: {{RetailLng_276}}, type: "{{RetailStoretype_276}}" },
+{ storeId: "{{RetailStoreId_277}}", lat: {{RetailLat_277}}, lng: {{RetailLng_277}}, type: "{{RetailStoretype_277}}" },
+{ storeId: "{{RetailStoreId_278}}", lat: {{RetailLat_278}}, lng: {{RetailLng_278}}, type: "{{RetailStoretype_278}}" },
+{ storeId: "{{RetailStoreId_279}}", lat: {{RetailLat_279}}, lng: {{RetailLng_279}}, type: "{{RetailStoretype_279}}" },
+{ storeId: "{{RetailStoreId_280}}", lat: {{RetailLat_280}}, lng: {{RetailLng_280}}, type: "{{RetailStoretype_280}}" },
+{ storeId: "{{RetailStoreId_281}}", lat: {{RetailLat_281}}, lng: {{RetailLng_281}}, type: "{{RetailStoretype_281}}" },
+{ storeId: "{{RetailStoreId_282}}", lat: {{RetailLat_282}}, lng: {{RetailLng_282}}, type: "{{RetailStoretype_282}}" },
+{ storeId: "{{RetailStoreId_283}}", lat: {{RetailLat_283}}, lng: {{RetailLng_283}}, type: "{{RetailStoretype_283}}" },
+{ storeId: "{{RetailStoreId_284}}", lat: {{RetailLat_284}}, lng: {{RetailLng_284}}, type: "{{RetailStoretype_284}}" },
+{ storeId: "{{RetailStoreId_285}}", lat: {{RetailLat_285}}, lng: {{RetailLng_285}}, type: "{{RetailStoretype_285}}" },
+{ storeId: "{{RetailStoreId_286}}", lat: {{RetailLat_286}}, lng: {{RetailLng_286}}, type: "{{RetailStoretype_286}}" },
+{ storeId: "{{RetailStoreId_287}}", lat: {{RetailLat_287}}, lng: {{RetailLng_287}}, type: "{{RetailStoretype_287}}" },
+{ storeId: "{{RetailStoreId_288}}", lat: {{RetailLat_288}}, lng: {{RetailLng_288}}, type: "{{RetailStoretype_288}}" },
+{ storeId: "{{RetailStoreId_289}}", lat: {{RetailLat_289}}, lng: {{RetailLng_289}}, type: "{{RetailStoretype_289}}" },
+{ storeId: "{{RetailStoreId_290}}", lat: {{RetailLat_290}}, lng: {{RetailLng_290}}, type: "{{RetailStoretype_290}}" },
+{ storeId: "{{RetailStoreId_291}}", lat: {{RetailLat_291}}, lng: {{RetailLng_291}}, type: "{{RetailStoretype_291}}" },
+{ storeId: "{{RetailStoreId_292}}", lat: {{RetailLat_292}}, lng: {{RetailLng_292}}, type: "{{RetailStoretype_292}}" },
+{ storeId: "{{RetailStoreId_293}}", lat: {{RetailLat_293}}, lng: {{RetailLng_293}}, type: "{{RetailStoretype_293}}" },
+{ storeId: "{{RetailStoreId_294}}", lat: {{RetailLat_294}}, lng: {{RetailLng_294}}, type: "{{RetailStoretype_294}}" },
+{ storeId: "{{RetailStoreId_295}}", lat: {{RetailLat_295}}, lng: {{RetailLng_295}}, type: "{{RetailStoretype_295}}" },
+{ storeId: "{{RetailStoreId_296}}", lat: {{RetailLat_296}}, lng: {{RetailLng_296}}, type: "{{RetailStoretype_296}}" },
+{ storeId: "{{RetailStoreId_297}}", lat: {{RetailLat_297}}, lng: {{RetailLng_297}}, type: "{{RetailStoretype_297}}" },
+{ storeId: "{{RetailStoreId_298}}", lat: {{RetailLat_298}}, lng: {{RetailLng_298}}, type: "{{RetailStoretype_298}}" },
+{ storeId: "{{RetailStoreId_299}}", lat: {{RetailLat_299}}, lng: {{RetailLng_299}}, type: "{{RetailStoretype_299}}" },
+{ storeId: "{{RetailStoreId_300}}", lat: {{RetailLat_300}}, lng: {{RetailLng_300}}, type: "{{RetailStoretype_300}}" },
+{ storeId: "{{RetailStoreId_301}}", lat: {{RetailLat_301}}, lng: {{RetailLng_301}}, type: "{{RetailStoretype_301}}" },
+{ storeId: "{{RetailStoreId_302}}", lat: {{RetailLat_302}}, lng: {{RetailLng_302}}, type: "{{RetailStoretype_302}}" },
+{ storeId: "{{RetailStoreId_303}}", lat: {{RetailLat_303}}, lng: {{RetailLng_303}}, type: "{{RetailStoretype_303}}" },
+{ storeId: "{{RetailStoreId_304}}", lat: {{RetailLat_304}}, lng: {{RetailLng_304}}, type: "{{RetailStoretype_304}}" },
+{ storeId: "{{RetailStoreId_305}}", lat: {{RetailLat_305}}, lng: {{RetailLng_305}}, type: "{{RetailStoretype_305}}" },
+{ storeId: "{{RetailStoreId_306}}", lat: {{RetailLat_306}}, lng: {{RetailLng_306}}, type: "{{RetailStoretype_306}}" },
+{ storeId: "{{RetailStoreId_307}}", lat: {{RetailLat_307}}, lng: {{RetailLng_307}}, type: "{{RetailStoretype_307}}" },
+{ storeId: "{{RetailStoreId_308}}", lat: {{RetailLat_308}}, lng: {{RetailLng_308}}, type: "{{RetailStoretype_308}}" },
+{ storeId: "{{RetailStoreId_309}}", lat: {{RetailLat_309}}, lng: {{RetailLng_309}}, type: "{{RetailStoretype_309}}" },
+{ storeId: "{{RetailStoreId_310}}", lat: {{RetailLat_310}}, lng: {{RetailLng_310}}, type: "{{RetailStoretype_310}}" },
+{ storeId: "{{RetailStoreId_311}}", lat: {{RetailLat_311}}, lng: {{RetailLng_311}}, type: "{{RetailStoretype_311}}" },
+{ storeId: "{{RetailStoreId_312}}", lat: {{RetailLat_312}}, lng: {{RetailLng_312}}, type: "{{RetailStoretype_312}}" },
+{ storeId: "{{RetailStoreId_313}}", lat: {{RetailLat_313}}, lng: {{RetailLng_313}}, type: "{{RetailStoretype_313}}" },
+{ storeId: "{{RetailStoreId_314}}", lat: {{RetailLat_314}}, lng: {{RetailLng_314}}, type: "{{RetailStoretype_314}}" },
+{ storeId: "{{RetailStoreId_315}}", lat: {{RetailLat_315}}, lng: {{RetailLng_315}}, type: "{{RetailStoretype_315}}" },
+{ storeId: "{{RetailStoreId_316}}", lat: {{RetailLat_316}}, lng: {{RetailLng_316}}, type: "{{RetailStoretype_316}}" },
+{ storeId: "{{RetailStoreId_317}}", lat: {{RetailLat_317}}, lng: {{RetailLng_317}}, type: "{{RetailStoretype_317}}" },
+{ storeId: "{{RetailStoreId_318}}", lat: {{RetailLat_318}}, lng: {{RetailLng_318}}, type: "{{RetailStoretype_318}}" },
+{ storeId: "{{RetailStoreId_319}}", lat: {{RetailLat_319}}, lng: {{RetailLng_319}}, type: "{{RetailStoretype_319}}" },
+{ storeId: "{{RetailStoreId_320}}", lat: {{RetailLat_320}}, lng: {{RetailLng_320}}, type: "{{RetailStoretype_320}}" },
+{ storeId: "{{RetailStoreId_321}}", lat: {{RetailLat_321}}, lng: {{RetailLng_321}}, type: "{{RetailStoretype_321}}" },
+{ storeId: "{{RetailStoreId_322}}", lat: {{RetailLat_322}}, lng: {{RetailLng_322}}, type: "{{RetailStoretype_322}}" },
+{ storeId: "{{RetailStoreId_323}}", lat: {{RetailLat_323}}, lng: {{RetailLng_323}}, type: "{{RetailStoretype_323}}" },
+{ storeId: "{{RetailStoreId_324}}", lat: {{RetailLat_324}}, lng: {{RetailLng_324}}, type: "{{RetailStoretype_324}}" },
+{ storeId: "{{RetailStoreId_325}}", lat: {{RetailLat_325}}, lng: {{RetailLng_325}}, type: "{{RetailStoretype_325}}" },
+{ storeId: "{{RetailStoreId_326}}", lat: {{RetailLat_326}}, lng: {{RetailLng_326}}, type: "{{RetailStoretype_326}}" },
+{ storeId: "{{RetailStoreId_327}}", lat: {{RetailLat_327}}, lng: {{RetailLng_327}}, type: "{{RetailStoretype_327}}" },
+{ storeId: "{{RetailStoreId_328}}", lat: {{RetailLat_328}}, lng: {{RetailLng_328}}, type: "{{RetailStoretype_328}}" },
+{ storeId: "{{RetailStoreId_329}}", lat: {{RetailLat_329}}, lng: {{RetailLng_329}}, type: "{{RetailStoretype_329}}" },
+{ storeId: "{{RetailStoreId_330}}", lat: {{RetailLat_330}}, lng: {{RetailLng_330}}, type: "{{RetailStoretype_330}}" },
+{ storeId: "{{RetailStoreId_331}}", lat: {{RetailLat_331}}, lng: {{RetailLng_331}}, type: "{{RetailStoretype_331}}" },
+{ storeId: "{{RetailStoreId_332}}", lat: {{RetailLat_332}}, lng: {{RetailLng_332}}, type: "{{RetailStoretype_332}}" },
+{ storeId: "{{RetailStoreId_333}}", lat: {{RetailLat_333}}, lng: {{RetailLng_333}}, type: "{{RetailStoretype_333}}" },
+{ storeId: "{{RetailStoreId_334}}", lat: {{RetailLat_334}}, lng: {{RetailLng_334}}, type: "{{RetailStoretype_334}}" },
+{ storeId: "{{RetailStoreId_335}}", lat: {{RetailLat_335}}, lng: {{RetailLng_335}}, type: "{{RetailStoretype_335}}" },
+{ storeId: "{{RetailStoreId_336}}", lat: {{RetailLat_336}}, lng: {{RetailLng_336}}, type: "{{RetailStoretype_336}}" },
+{ storeId: "{{RetailStoreId_337}}", lat: {{RetailLat_337}}, lng: {{RetailLng_337}}, type: "{{RetailStoretype_337}}" },
+{ storeId: "{{RetailStoreId_338}}", lat: {{RetailLat_338}}, lng: {{RetailLng_338}}, type: "{{RetailStoretype_338}}" },
+{ storeId: "{{RetailStoreId_339}}", lat: {{RetailLat_339}}, lng: {{RetailLng_339}}, type: "{{RetailStoretype_339}}" },
+{ storeId: "{{RetailStoreId_340}}", lat: {{RetailLat_340}}, lng: {{RetailLng_340}}, type: "{{RetailStoretype_340}}" },
+{ storeId: "{{RetailStoreId_341}}", lat: {{RetailLat_341}}, lng: {{RetailLng_341}}, type: "{{RetailStoretype_341}}" },
+{ storeId: "{{RetailStoreId_342}}", lat: {{RetailLat_342}}, lng: {{RetailLng_342}}, type: "{{RetailStoretype_342}}" },
+{ storeId: "{{RetailStoreId_343}}", lat: {{RetailLat_343}}, lng: {{RetailLng_343}}, type: "{{RetailStoretype_343}}" },
+{ storeId: "{{RetailStoreId_344}}", lat: {{RetailLat_344}}, lng: {{RetailLng_344}}, type: "{{RetailStoretype_344}}" },
+{ storeId: "{{RetailStoreId_345}}", lat: {{RetailLat_345}}, lng: {{RetailLng_345}}, type: "{{RetailStoretype_345}}" },
+{ storeId: "{{RetailStoreId_346}}", lat: {{RetailLat_346}}, lng: {{RetailLng_346}}, type: "{{RetailStoretype_346}}" },
+{ storeId: "{{RetailStoreId_347}}", lat: {{RetailLat_347}}, lng: {{RetailLng_347}}, type: "{{RetailStoretype_347}}" },
+{ storeId: "{{RetailStoreId_348}}", lat: {{RetailLat_348}}, lng: {{RetailLng_348}}, type: "{{RetailStoretype_348}}" },
+{ storeId: "{{RetailStoreId_349}}", lat: {{RetailLat_349}}, lng: {{RetailLng_349}}, type: "{{RetailStoretype_349}}" },
+{ storeId: "{{RetailStoreId_350}}", lat: {{RetailLat_350}}, lng: {{RetailLng_350}}, type: "{{RetailStoretype_350}}" },
+{ storeId: "{{RetailStoreId_351}}", lat: {{RetailLat_351}}, lng: {{RetailLng_351}}, type: "{{RetailStoretype_351}}" },
+{ storeId: "{{RetailStoreId_352}}", lat: {{RetailLat_352}}, lng: {{RetailLng_352}}, type: "{{RetailStoretype_352}}" },
+{ storeId: "{{RetailStoreId_353}}", lat: {{RetailLat_353}}, lng: {{RetailLng_353}}, type: "{{RetailStoretype_353}}" },
+{ storeId: "{{RetailStoreId_354}}", lat: {{RetailLat_354}}, lng: {{RetailLng_354}}, type: "{{RetailStoretype_354}}" },
+{ storeId: "{{RetailStoreId_355}}", lat: {{RetailLat_355}}, lng: {{RetailLng_355}}, type: "{{RetailStoretype_355}}" },
+{ storeId: "{{RetailStoreId_356}}", lat: {{RetailLat_356}}, lng: {{RetailLng_356}}, type: "{{RetailStoretype_356}}" },
+{ storeId: "{{RetailStoreId_357}}", lat: {{RetailLat_357}}, lng: {{RetailLng_357}}, type: "{{RetailStoretype_357}}" },
+{ storeId: "{{RetailStoreId_358}}", lat: {{RetailLat_358}}, lng: {{RetailLng_358}}, type: "{{RetailStoretype_358}}" },
+{ storeId: "{{RetailStoreId_359}}", lat: {{RetailLat_359}}, lng: {{RetailLng_359}}, type: "{{RetailStoretype_359}}" },
+{ storeId: "{{RetailStoreId_360}}", lat: {{RetailLat_360}}, lng: {{RetailLng_360}}, type: "{{RetailStoretype_360}}" },
+{ storeId: "{{RetailStoreId_361}}", lat: {{RetailLat_361}}, lng: {{RetailLng_361}}, type: "{{RetailStoretype_361}}" },
+{ storeId: "{{RetailStoreId_362}}", lat: {{RetailLat_362}}, lng: {{RetailLng_362}}, type: "{{RetailStoretype_362}}" },
+{ storeId: "{{RetailStoreId_363}}", lat: {{RetailLat_363}}, lng: {{RetailLng_363}}, type: "{{RetailStoretype_363}}" },
+{ storeId: "{{RetailStoreId_364}}", lat: {{RetailLat_364}}, lng: {{RetailLng_364}}, type: "{{RetailStoretype_364}}" },
+{ storeId: "{{RetailStoreId_365}}", lat: {{RetailLat_365}}, lng: {{RetailLng_365}}, type: "{{RetailStoretype_365}}" },
+{ storeId: "{{RetailStoreId_366}}", lat: {{RetailLat_366}}, lng: {{RetailLng_366}}, type: "{{RetailStoretype_366}}" },
+{ storeId: "{{RetailStoreId_367}}", lat: {{RetailLat_367}}, lng: {{RetailLng_367}}, type: "{{RetailStoretype_367}}" },
+{ storeId: "{{RetailStoreId_368}}", lat: {{RetailLat_368}}, lng: {{RetailLng_368}}, type: "{{RetailStoretype_368}}" },
+{ storeId: "{{RetailStoreId_369}}", lat: {{RetailLat_369}}, lng: {{RetailLng_369}}, type: "{{RetailStoretype_369}}" },
+{ storeId: "{{RetailStoreId_370}}", lat: {{RetailLat_370}}, lng: {{RetailLng_370}}, type: "{{RetailStoretype_370}}" },
+{ storeId: "{{RetailStoreId_371}}", lat: {{RetailLat_371}}, lng: {{RetailLng_371}}, type: "{{RetailStoretype_371}}" },
+{ storeId: "{{RetailStoreId_372}}", lat: {{RetailLat_372}}, lng: {{RetailLng_372}}, type: "{{RetailStoretype_372}}" },
+{ storeId: "{{RetailStoreId_373}}", lat: {{RetailLat_373}}, lng: {{RetailLng_373}}, type: "{{RetailStoretype_373}}" },
+{ storeId: "{{RetailStoreId_374}}", lat: {{RetailLat_374}}, lng: {{RetailLng_374}}, type: "{{RetailStoretype_374}}" },
+{ storeId: "{{RetailStoreId_375}}", lat: {{RetailLat_375}}, lng: {{RetailLng_375}}, type: "{{RetailStoretype_375}}" },
+{ storeId: "{{RetailStoreId_376}}", lat: {{RetailLat_376}}, lng: {{RetailLng_376}}, type: "{{RetailStoretype_376}}" },
+{ storeId: "{{RetailStoreId_377}}", lat: {{RetailLat_377}}, lng: {{RetailLng_377}}, type: "{{RetailStoretype_377}}" },
+{ storeId: "{{RetailStoreId_378}}", lat: {{RetailLat_378}}, lng: {{RetailLng_378}}, type: "{{RetailStoretype_378}}" },
+{ storeId: "{{RetailStoreId_379}}", lat: {{RetailLat_379}}, lng: {{RetailLng_379}}, type: "{{RetailStoretype_379}}" },
+{ storeId: "{{RetailStoreId_380}}", lat: {{RetailLat_380}}, lng: {{RetailLng_380}}, type: "{{RetailStoretype_380}}" },
+{ storeId: "{{RetailStoreId_381}}", lat: {{RetailLat_381}}, lng: {{RetailLng_381}}, type: "{{RetailStoretype_381}}" },
+{ storeId: "{{RetailStoreId_382}}", lat: {{RetailLat_382}}, lng: {{RetailLng_382}}, type: "{{RetailStoretype_382}}" },
+{ storeId: "{{RetailStoreId_383}}", lat: {{RetailLat_383}}, lng: {{RetailLng_383}}, type: "{{RetailStoretype_383}}" },
+{ storeId: "{{RetailStoreId_384}}", lat: {{RetailLat_384}}, lng: {{RetailLng_384}}, type: "{{RetailStoretype_384}}" },
+{ storeId: "{{RetailStoreId_385}}", lat: {{RetailLat_385}}, lng: {{RetailLng_385}}, type: "{{RetailStoretype_385}}" },
+{ storeId: "{{RetailStoreId_386}}", lat: {{RetailLat_386}}, lng: {{RetailLng_386}}, type: "{{RetailStoretype_386}}" },
+{ storeId: "{{RetailStoreId_387}}", lat: {{RetailLat_387}}, lng: {{RetailLng_387}}, type: "{{RetailStoretype_387}}" },
+{ storeId: "{{RetailStoreId_388}}", lat: {{RetailLat_388}}, lng: {{RetailLng_388}}, type: "{{RetailStoretype_388}}" },
+{ storeId: "{{RetailStoreId_389}}", lat: {{RetailLat_389}}, lng: {{RetailLng_389}}, type: "{{RetailStoretype_389}}" },
+{ storeId: "{{RetailStoreId_390}}", lat: {{RetailLat_390}}, lng: {{RetailLng_390}}, type: "{{RetailStoretype_390}}" },
+{ storeId: "{{RetailStoreId_391}}", lat: {{RetailLat_391}}, lng: {{RetailLng_391}}, type: "{{RetailStoretype_391}}" },
+{ storeId: "{{RetailStoreId_392}}", lat: {{RetailLat_392}}, lng: {{RetailLng_392}}, type: "{{RetailStoretype_392}}" },
+{ storeId: "{{RetailStoreId_393}}", lat: {{RetailLat_393}}, lng: {{RetailLng_393}}, type: "{{RetailStoretype_393}}" },
+{ storeId: "{{RetailStoreId_394}}", lat: {{RetailLat_394}}, lng: {{RetailLng_394}}, type: "{{RetailStoretype_394}}" },
+{ storeId: "{{RetailStoreId_395}}", lat: {{RetailLat_395}}, lng: {{RetailLng_395}}, type: "{{RetailStoretype_395}}" },
+{ storeId: "{{RetailStoreId_396}}", lat: {{RetailLat_396}}, lng: {{RetailLng_396}}, type: "{{RetailStoretype_396}}" },
+{ storeId: "{{RetailStoreId_397}}", lat: {{RetailLat_397}}, lng: {{RetailLng_397}}, type: "{{RetailStoretype_397}}" },
+{ storeId: "{{RetailStoreId_398}}", lat: {{RetailLat_398}}, lng: {{RetailLng_398}}, type: "{{RetailStoretype_398}}" },
+{ storeId: "{{RetailStoreId_399}}", lat: {{RetailLat_399}}, lng: {{RetailLng_399}}, type: "{{RetailStoretype_399}}" },
+{ storeId: "{{RetailStoreId_400}}", lat: {{RetailLat_400}}, lng: {{RetailLng_400}}, type: "{{RetailStoretype_400}}" },
+{ storeId: "{{RetailStoreId_401}}", lat: {{RetailLat_401}}, lng: {{RetailLng_401}}, type: "{{RetailStoretype_401}}" },
+{ storeId: "{{RetailStoreId_402}}", lat: {{RetailLat_402}}, lng: {{RetailLng_402}}, type: "{{RetailStoretype_402}}" },
+{ storeId: "{{RetailStoreId_403}}", lat: {{RetailLat_403}}, lng: {{RetailLng_403}}, type: "{{RetailStoretype_403}}" },
+{ storeId: "{{RetailStoreId_404}}", lat: {{RetailLat_404}}, lng: {{RetailLng_404}}, type: "{{RetailStoretype_404}}" },
+{ storeId: "{{RetailStoreId_405}}", lat: {{RetailLat_405}}, lng: {{RetailLng_405}}, type: "{{RetailStoretype_405}}" },
+{ storeId: "{{RetailStoreId_406}}", lat: {{RetailLat_406}}, lng: {{RetailLng_406}}, type: "{{RetailStoretype_406}}" },
+{ storeId: "{{RetailStoreId_407}}", lat: {{RetailLat_407}}, lng: {{RetailLng_407}}, type: "{{RetailStoretype_407}}" },
+{ storeId: "{{RetailStoreId_408}}", lat: {{RetailLat_408}}, lng: {{RetailLng_408}}, type: "{{RetailStoretype_408}}" },
+{ storeId: "{{RetailStoreId_409}}", lat: {{RetailLat_409}}, lng: {{RetailLng_409}}, type: "{{RetailStoretype_409}}" },
+{ storeId: "{{RetailStoreId_410}}", lat: {{RetailLat_410}}, lng: {{RetailLng_410}}, type: "{{RetailStoretype_410}}" },
+{ storeId: "{{RetailStoreId_411}}", lat: {{RetailLat_411}}, lng: {{RetailLng_411}}, type: "{{RetailStoretype_411}}" },
+{ storeId: "{{RetailStoreId_412}}", lat: {{RetailLat_412}}, lng: {{RetailLng_412}}, type: "{{RetailStoretype_412}}" },
+{ storeId: "{{RetailStoreId_413}}", lat: {{RetailLat_413}}, lng: {{RetailLng_413}}, type: "{{RetailStoretype_413}}" },
+{ storeId: "{{RetailStoreId_414}}", lat: {{RetailLat_414}}, lng: {{RetailLng_414}}, type: "{{RetailStoretype_414}}" },
+{ storeId: "{{RetailStoreId_415}}", lat: {{RetailLat_415}}, lng: {{RetailLng_415}}, type: "{{RetailStoretype_415}}" },
+{ storeId: "{{RetailStoreId_416}}", lat: {{RetailLat_416}}, lng: {{RetailLng_416}}, type: "{{RetailStoretype_416}}" },
+{ storeId: "{{RetailStoreId_417}}", lat: {{RetailLat_417}}, lng: {{RetailLng_417}}, type: "{{RetailStoretype_417}}" },
+{ storeId: "{{RetailStoreId_418}}", lat: {{RetailLat_418}}, lng: {{RetailLng_418}}, type: "{{RetailStoretype_418}}" },
+{ storeId: "{{RetailStoreId_419}}", lat: {{RetailLat_419}}, lng: {{RetailLng_419}}, type: "{{RetailStoretype_419}}" },
+{ storeId: "{{RetailStoreId_420}}", lat: {{RetailLat_420}}, lng: {{RetailLng_420}}, type: "{{RetailStoretype_420}}" },
+{ storeId: "{{RetailStoreId_421}}", lat: {{RetailLat_421}}, lng: {{RetailLng_421}}, type: "{{RetailStoretype_421}}" },
+{ storeId: "{{RetailStoreId_422}}", lat: {{RetailLat_422}}, lng: {{RetailLng_422}}, type: "{{RetailStoretype_422}}" },
+{ storeId: "{{RetailStoreId_423}}", lat: {{RetailLat_423}}, lng: {{RetailLng_423}}, type: "{{RetailStoretype_423}}" },
+{ storeId: "{{RetailStoreId_424}}", lat: {{RetailLat_424}}, lng: {{RetailLng_424}}, type: "{{RetailStoretype_424}}" },
+{ storeId: "{{RetailStoreId_425}}", lat: {{RetailLat_425}}, lng: {{RetailLng_425}}, type: "{{RetailStoretype_425}}" },
+{ storeId: "{{RetailStoreId_426}}", lat: {{RetailLat_426}}, lng: {{RetailLng_426}}, type: "{{RetailStoretype_426}}" },
+{ storeId: "{{RetailStoreId_427}}", lat: {{RetailLat_427}}, lng: {{RetailLng_427}}, type: "{{RetailStoretype_427}}" },
+{ storeId: "{{RetailStoreId_428}}", lat: {{RetailLat_428}}, lng: {{RetailLng_428}}, type: "{{RetailStoretype_428}}" },
+{ storeId: "{{RetailStoreId_429}}", lat: {{RetailLat_429}}, lng: {{RetailLng_429}}, type: "{{RetailStoretype_429}}" },
+{ storeId: "{{RetailStoreId_430}}", lat: {{RetailLat_430}}, lng: {{RetailLng_430}}, type: "{{RetailStoretype_430}}" },
+{ storeId: "{{RetailStoreId_431}}", lat: {{RetailLat_431}}, lng: {{RetailLng_431}}, type: "{{RetailStoretype_431}}" },
+{ storeId: "{{RetailStoreId_432}}", lat: {{RetailLat_432}}, lng: {{RetailLng_432}}, type: "{{RetailStoretype_432}}" },
+{ storeId: "{{RetailStoreId_433}}", lat: {{RetailLat_433}}, lng: {{RetailLng_433}}, type: "{{RetailStoretype_433}}" },
+{ storeId: "{{RetailStoreId_434}}", lat: {{RetailLat_434}}, lng: {{RetailLng_434}}, type: "{{RetailStoretype_434}}" },
+{ storeId: "{{RetailStoreId_435}}", lat: {{RetailLat_435}}, lng: {{RetailLng_435}}, type: "{{RetailStoretype_435}}" },
+{ storeId: "{{RetailStoreId_436}}", lat: {{RetailLat_436}}, lng: {{RetailLng_436}}, type: "{{RetailStoretype_436}}" },
+{ storeId: "{{RetailStoreId_437}}", lat: {{RetailLat_437}}, lng: {{RetailLng_437}}, type: "{{RetailStoretype_437}}" },
+{ storeId: "{{RetailStoreId_438}}", lat: {{RetailLat_438}}, lng: {{RetailLng_438}}, type: "{{RetailStoretype_438}}" },
+{ storeId: "{{RetailStoreId_439}}", lat: {{RetailLat_439}}, lng: {{RetailLng_439}}, type: "{{RetailStoretype_439}}" },
+{ storeId: "{{RetailStoreId_440}}", lat: {{RetailLat_440}}, lng: {{RetailLng_440}}, type: "{{RetailStoretype_440}}" },
+{ storeId: "{{RetailStoreId_441}}", lat: {{RetailLat_441}}, lng: {{RetailLng_441}}, type: "{{RetailStoretype_441}}" },
+{ storeId: "{{RetailStoreId_442}}", lat: {{RetailLat_442}}, lng: {{RetailLng_442}}, type: "{{RetailStoretype_442}}" },
+{ storeId: "{{RetailStoreId_443}}", lat: {{RetailLat_443}}, lng: {{RetailLng_443}}, type: "{{RetailStoretype_443}}" },
+{ storeId: "{{RetailStoreId_444}}", lat: {{RetailLat_444}}, lng: {{RetailLng_444}}, type: "{{RetailStoretype_444}}" },
+{ storeId: "{{RetailStoreId_445}}", lat: {{RetailLat_445}}, lng: {{RetailLng_445}}, type: "{{RetailStoretype_445}}" },
+{ storeId: "{{RetailStoreId_446}}", lat: {{RetailLat_446}}, lng: {{RetailLng_446}}, type: "{{RetailStoretype_446}}" },
+{ storeId: "{{RetailStoreId_447}}", lat: {{RetailLat_447}}, lng: {{RetailLng_447}}, type: "{{RetailStoretype_447}}" },
+{ storeId: "{{RetailStoreId_448}}", lat: {{RetailLat_448}}, lng: {{RetailLng_448}}, type: "{{RetailStoretype_448}}" },
+{ storeId: "{{RetailStoreId_449}}", lat: {{RetailLat_449}}, lng: {{RetailLng_449}}, type: "{{RetailStoretype_449}}" },
+{ storeId: "{{RetailStoreId_450}}", lat: {{RetailLat_450}}, lng: {{RetailLng_450}}, type: "{{RetailStoretype_450}}" },
+{ storeId: "{{RetailStoreId_451}}", lat: {{RetailLat_451}}, lng: {{RetailLng_451}}, type: "{{RetailStoretype_451}}" },
+{ storeId: "{{RetailStoreId_452}}", lat: {{RetailLat_452}}, lng: {{RetailLng_452}}, type: "{{RetailStoretype_452}}" },
+{ storeId: "{{RetailStoreId_453}}", lat: {{RetailLat_453}}, lng: {{RetailLng_453}}, type: "{{RetailStoretype_453}}" },
+{ storeId: "{{RetailStoreId_454}}", lat: {{RetailLat_454}}, lng: {{RetailLng_454}}, type: "{{RetailStoretype_454}}" },
+{ storeId: "{{RetailStoreId_455}}", lat: {{RetailLat_455}}, lng: {{RetailLng_455}}, type: "{{RetailStoretype_455}}" },
+{ storeId: "{{RetailStoreId_456}}", lat: {{RetailLat_456}}, lng: {{RetailLng_456}}, type: "{{RetailStoretype_456}}" },
+{ storeId: "{{RetailStoreId_457}}", lat: {{RetailLat_457}}, lng: {{RetailLng_457}}, type: "{{RetailStoretype_457}}" },
+{ storeId: "{{RetailStoreId_458}}", lat: {{RetailLat_458}}, lng: {{RetailLng_458}}, type: "{{RetailStoretype_458}}" },
+{ storeId: "{{RetailStoreId_459}}", lat: {{RetailLat_459}}, lng: {{RetailLng_459}}, type: "{{RetailStoretype_459}}" },
+{ storeId: "{{RetailStoreId_460}}", lat: {{RetailLat_460}}, lng: {{RetailLng_460}}, type: "{{RetailStoretype_460}}" },
+{ storeId: "{{RetailStoreId_461}}", lat: {{RetailLat_461}}, lng: {{RetailLng_461}}, type: "{{RetailStoretype_461}}" },
+{ storeId: "{{RetailStoreId_462}}", lat: {{RetailLat_462}}, lng: {{RetailLng_462}}, type: "{{RetailStoretype_462}}" },
+{ storeId: "{{RetailStoreId_463}}", lat: {{RetailLat_463}}, lng: {{RetailLng_463}}, type: "{{RetailStoretype_463}}" },
+{ storeId: "{{RetailStoreId_464}}", lat: {{RetailLat_464}}, lng: {{RetailLng_464}}, type: "{{RetailStoretype_464}}" },
+{ storeId: "{{RetailStoreId_465}}", lat: {{RetailLat_465}}, lng: {{RetailLng_465}}, type: "{{RetailStoretype_465}}" },
+{ storeId: "{{RetailStoreId_466}}", lat: {{RetailLat_466}}, lng: {{RetailLng_466}}, type: "{{RetailStoretype_466}}" },
+{ storeId: "{{RetailStoreId_467}}", lat: {{RetailLat_467}}, lng: {{RetailLng_467}}, type: "{{RetailStoretype_467}}" },
+{ storeId: "{{RetailStoreId_468}}", lat: {{RetailLat_468}}, lng: {{RetailLng_468}}, type: "{{RetailStoretype_468}}" },
+{ storeId: "{{RetailStoreId_469}}", lat: {{RetailLat_469}}, lng: {{RetailLng_469}}, type: "{{RetailStoretype_469}}" },
+{ storeId: "{{RetailStoreId_470}}", lat: {{RetailLat_470}}, lng: {{RetailLng_470}}, type: "{{RetailStoretype_470}}" },
+{ storeId: "{{RetailStoreId_471}}", lat: {{RetailLat_471}}, lng: {{RetailLng_471}}, type: "{{RetailStoretype_471}}" },
+{ storeId: "{{RetailStoreId_472}}", lat: {{RetailLat_472}}, lng: {{RetailLng_472}}, type: "{{RetailStoretype_472}}" },
+{ storeId: "{{RetailStoreId_473}}", lat: {{RetailLat_473}}, lng: {{RetailLng_473}}, type: "{{RetailStoretype_473}}" },
+{ storeId: "{{RetailStoreId_474}}", lat: {{RetailLat_474}}, lng: {{RetailLng_474}}, type: "{{RetailStoretype_474}}" },
+{ storeId: "{{RetailStoreId_475}}", lat: {{RetailLat_475}}, lng: {{RetailLng_475}}, type: "{{RetailStoretype_475}}" },
+{ storeId: "{{RetailStoreId_476}}", lat: {{RetailLat_476}}, lng: {{RetailLng_476}}, type: "{{RetailStoretype_476}}" },
+{ storeId: "{{RetailStoreId_477}}", lat: {{RetailLat_477}}, lng: {{RetailLng_477}}, type: "{{RetailStoretype_477}}" },
+{ storeId: "{{RetailStoreId_478}}", lat: {{RetailLat_478}}, lng: {{RetailLng_478}}, type: "{{RetailStoretype_478}}" },
+{ storeId: "{{RetailStoreId_479}}", lat: {{RetailLat_479}}, lng: {{RetailLng_479}}, type: "{{RetailStoretype_479}}" },
+{ storeId: "{{RetailStoreId_480}}", lat: {{RetailLat_480}}, lng: {{RetailLng_480}}, type: "{{RetailStoretype_480}}" },
+{ storeId: "{{RetailStoreId_481}}", lat: {{RetailLat_481}}, lng: {{RetailLng_481}}, type: "{{RetailStoretype_481}}" },
+{ storeId: "{{RetailStoreId_482}}", lat: {{RetailLat_482}}, lng: {{RetailLng_482}}, type: "{{RetailStoretype_482}}" },
+{ storeId: "{{RetailStoreId_483}}", lat: {{RetailLat_483}}, lng: {{RetailLng_483}}, type: "{{RetailStoretype_483}}" },
+{ storeId: "{{RetailStoreId_484}}", lat: {{RetailLat_484}}, lng: {{RetailLng_484}}, type: "{{RetailStoretype_484}}" },
+{ storeId: "{{RetailStoreId_485}}", lat: {{RetailLat_485}}, lng: {{RetailLng_485}}, type: "{{RetailStoretype_485}}" },
+{ storeId: "{{RetailStoreId_486}}", lat: {{RetailLat_486}}, lng: {{RetailLng_486}}, type: "{{RetailStoretype_486}}" },
+{ storeId: "{{RetailStoreId_487}}", lat: {{RetailLat_487}}, lng: {{RetailLng_487}}, type: "{{RetailStoretype_487}}" },
+{ storeId: "{{RetailStoreId_488}}", lat: {{RetailLat_488}}, lng: {{RetailLng_488}}, type: "{{RetailStoretype_488}}" },
+{ storeId: "{{RetailStoreId_489}}", lat: {{RetailLat_489}}, lng: {{RetailLng_489}}, type: "{{RetailStoretype_489}}" },
+{ storeId: "{{RetailStoreId_490}}", lat: {{RetailLat_490}}, lng: {{RetailLng_490}}, type: "{{RetailStoretype_490}}" },
+{ storeId: "{{RetailStoreId_491}}", lat: {{RetailLat_491}}, lng: {{RetailLng_491}}, type: "{{RetailStoretype_491}}" },
+{ storeId: "{{RetailStoreId_492}}", lat: {{RetailLat_492}}, lng: {{RetailLng_492}}, type: "{{RetailStoretype_492}}" },
+{ storeId: "{{RetailStoreId_493}}", lat: {{RetailLat_493}}, lng: {{RetailLng_493}}, type: "{{RetailStoretype_493}}" },
+{ storeId: "{{RetailStoreId_494}}", lat: {{RetailLat_494}}, lng: {{RetailLng_494}}, type: "{{RetailStoretype_494}}" },
+{ storeId: "{{RetailStoreId_495}}", lat: {{RetailLat_495}}, lng: {{RetailLng_495}}, type: "{{RetailStoretype_495}}" },
+{ storeId: "{{RetailStoreId_496}}", lat: {{RetailLat_496}}, lng: {{RetailLng_496}}, type: "{{RetailStoretype_496}}" },
+{ storeId: "{{RetailStoreId_497}}", lat: {{RetailLat_497}}, lng: {{RetailLng_497}}, type: "{{RetailStoretype_497}}" },
+{ storeId: "{{RetailStoreId_498}}", lat: {{RetailLat_498}}, lng: {{RetailLng_498}}, type: "{{RetailStoretype_498}}" },
+{ storeId: "{{RetailStoreId_499}}", lat: {{RetailLat_499}}, lng: {{RetailLng_499}}, type: "{{RetailStoretype_499}}" },
+{ storeId: "{{RetailStoreId_500}}", lat: {{RetailLat_500}}, lng: {{RetailLng_500}}, type: "{{RetailStoretype_500}}" },
+];
+console.log("Retail/FC/New/BBNow Data loaded: ".concat(retailStoreData.length, " points"));
+
+// --- Map Initialization ---
+var map = L.map('map', {
+  zoomSnap: 0.25,
+  zoomDelta: 0.25
+}).setView(INDIA_CENTER, INITIAL_ZOOM);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+storeClickBoundaryLayer.addTo(map);
+highlightedGridLayer.addTo(map);
+boundaryLayer.addTo(map);
+
+// Add store type layers to map by default (based on initial checkbox state)
+map.addLayer(retailLayer);
+map.addLayer(upcomingRetailLayer);
+map.addLayer(fcLayer);
+map.addLayer(upcomingFcLayer);
+map.addLayer(docpharmaLayer);
+map.addLayer(upcomingDocpharmaLayer);
+map.addLayer(bbLayer);
+map.addLayer(upcomingBbLayer);
+// Add the combined layer for search (it doesn't need to be added/removed, just used for searching)
+allRetailMarkersLayer.addTo(map);
+
+// --- UI Elements ---
+var sidebarTitle = document.querySelector('.sidebar .fixed-container h2');
+var storeSearchInput = document.getElementById('store-search-input'); // NEW
+var storeSearchButton = document.getElementById('store-search-button'); // NEW
+var storeSearchFeedback = document.getElementById('store-search-feedback'); // NEW
+var distanceMarkersButton = document.getElementById('distance-markers-button');
+var clearDistanceMarkersButton = document.getElementById('clear-distance-markers-button');
+var distanceFeedback = document.getElementById('distance-feedback');
+var cityButtons = document.querySelectorAll('.city-list li button');
+var indiaViewButton = document.getElementById('btn-india-view');
+var processDataButton = document.getElementById('btn-process-data');
+var eraseDataButton = document.getElementById('btn-erase-data');
+var loader = document.getElementById('loader');
+var analysisModeRadios = document.querySelectorAll('input[name="analysis-mode-toggle"]');
+var plotBoundariesButton = document.getElementById('btn-plot-boundaries');
+var clearCatchmentsButton = document.getElementById('btn-clear-catchments');
+var gridToggleRadios = document.querySelectorAll('input[name="grid-toggle"]');
+var colorScaleRadios = document.querySelectorAll('input[name="color-scale-toggle"]');
+var gridSummaryContainer = document.getElementById('grid-summary-container');
+// Store type toggle checkboxes
+var retailCheckbox = document.getElementById('toggle-retail-store');
+var upcomingRetailCheckbox = document.getElementById('toggle-upcoming-retail-store');
+var fcCheckbox = document.getElementById('toggle-fc');
+var upcomingFcCheckbox = document.getElementById('toggle-upcoming-fc');
+var docpharmaCheckbox = document.getElementById('toggle-docpharma');
+var upcomingDocpharmaCheckbox = document.getElementById('toggle-upcoming-docpharma');
+var bbCheckbox = document.getElementById('toggle-bb');
+var upcomingBbCheckbox = document.getElementById('toggle-upcoming-bb');
+var retailLegend = document.getElementById('retail-legend');
+var centroidToggleButton = document.getElementById('btn-toggle-centroids');
+var placeholderSummary = '<div class="placeholder">Summary data will appear here...</div>';
+var analyzeStoreCoverageButton = document.getElementById('btn-analyze-store-coverage');
+var storeCoverageAnalysisDiv = document.getElementById('store-coverage-analysis');
+var storeCoverageTableContainer = document.getElementById('store-coverage-table-container');
+var storeCoverageSlider = document.getElementById('store-coverage-slider');
+var storeCoverageSliderLabel = document.getElementById('store-coverage-slider-label');
+var storeCoveragePlaceholder = '<div class="placeholder">Run analysis first...</div>';
+var copyStoreCoverageButton = document.getElementById('btn-copy-store-coverage');
+var analysisResultsTitle = document.getElementById('analysis-results-title');
+var catchmentControls = document.getElementById('catchment-controls');
+var catchmentRadioGroup = document.getElementById('catchment-radio-group');
+var boundaryCatchmentContainer = document.getElementById('boundary-catchment-checkboxes');
+var boundaryCatchmentCheckboxes = boundaryCatchmentContainer.querySelectorAll('input[type="checkbox"]');
+var heatmapControls = document.getElementById('heatmap-controls');
+var gridAnalysisControls = document.getElementById('grid-analysis-controls');
+var storeCoverageSliderContainer = document.getElementById('store-coverage-slider-container');
+
+// --- Helper Functions ---
+function getDegChange(km, latitude) {
+  var latDegPerKm = 1 / 111.32;
+  var effectiveLat = Math.max(-85, Math.min(85, latitude));
+  var cosLat = Math.cos(effectiveLat * Math.PI / 180);
+  var lngDegPerKm = cosLat > 1e-9 ? 1 / (111.32 * cosLat) : 1 / (111.32 * 1e-9);
+  return {
+    latDelta: km * latDegPerKm,
+    lngDelta: km * lngDegPerKm
+  };
+}
+function getOrderColor(value, maxColorValue) {
+  if (value <= 0) return "#ffffff";
+  var cappedValue = Math.min(value, maxColorValue);
+  var maxValue = Math.max(0.00001, maxColorValue);
+  var ratio = Math.max(0, Math.min(1, cappedValue / maxValue));
+  var r, g, b;
+  if (ratio <= 0.5) {
+    // Interpolate between White (#ffffff) and Yellow (#ffff00)
+    var t = ratio / 0.5; // Normalize to 0–1 range
+    r = 255;
+    g = 255;
+    b = Math.round(255 * (1 - t));
+  } else {
+    // Interpolate between Yellow (#ffff00) and Red (#ff0000)
+    var _t = (ratio - 0.5) / 0.5;
+    r = 255;
+    g = Math.round(255 * (1 - _t));
+    b = 0;
+  }
+  var toHex = function toHex(c) {
+    return c.toString(16).padStart(2, '0');
+  };
+  return "#".concat(toHex(r)).concat(toHex(g)).concat(toHex(b));
+}
+function showLoader(show) {
+  loader.style.display = show ? 'block' : 'none';
+}
+function getAllDataPoints() {
+  return [].concat(actualDataPoints);
+}
+function toggleLayer(checkbox, layer) {
+  if (checkbox.checked) map.addLayer(layer);else map.removeLayer(layer);
+}
+
+// Check if any store-type layer is visible and has markers
+function areAnyADLayersVisibleAndLoaded() {
+  return retailCheckbox.checked && retailLayer.getLayers().length > 0 || upcomingRetailCheckbox.checked && upcomingRetailLayer.getLayers().length > 0 || fcCheckbox.checked && fcLayer.getLayers().length > 0 || upcomingFcCheckbox.checked && upcomingFcLayer.getLayers().length > 0 || docpharmaCheckbox.checked && docpharmaLayer.getLayers().length > 0 || upcomingDocpharmaCheckbox.checked && upcomingDocpharmaLayer.getLayers().length > 0 || bbCheckbox.checked && bbLayer.getLayers().length > 0 || upcomingBbCheckbox.checked && upcomingBbLayer.getLayers().length > 0;
+}
+
+// --- NEW: Store Search Function ---
+function findAndHighlightStore() {
+  var searchTerm = storeSearchInput.value.trim();
+  storeSearchFeedback.textContent = ''; // Clear previous feedback
+  storeSearchFeedback.style.color = '#dc3545'; // Default to error color
+
+  if (!searchTerm) {
+    storeSearchFeedback.textContent = 'Please enter a Store ID.';
+    return;
+  }
+  if (!isStoreDataLoaded) {
+    // Check if data has been loaded/processed once
+    storeSearchFeedback.textContent = 'Store data not yet loaded. Please wait or refresh.';
+    return;
+  }
+
+  // Check if any AD layer is checked. If not, prompt user.
+  if (!areAnyADLayersVisibleAndLoaded()) {
+    storeSearchFeedback.textContent = 'Enable at least one AD Type checkbox first.';
+    return;
+  }
+  var foundMarker = null;
+  var searchTermLower = searchTerm.toLowerCase(); // Case-insensitive search
+
+  // Iterate over the combined layer of all retail markers for search
+  allRetailMarkersLayer.eachLayer(function (marker) {
+    // Now this layer actually contains markers
+    if (marker.storeData && marker.storeData.storeId && marker.storeData.storeId.toLowerCase() === searchTermLower) {
+      foundMarker = marker;
+      // In a real scenario with many markers, you might optimize by breaking early
+      // but for Leaflet's eachLayer, it's generally fine.
+    }
+  });
+  if (foundMarker) {
+    var latLng = foundMarker.getLatLng();
+    var zoomLevel = Math.max(map.getZoom(), 15); // Zoom in if needed, but don't zoom out too much
+
+    map.flyTo(latLng, zoomLevel, {
+      animate: true,
+      duration: FLY_DURATION // Use existing constant
+    });
+    var markerIcon = foundMarker.getElement();
+    if (markerIcon) {
+      storeSearchFeedback.textContent = "Found: ".concat(foundMarker.storeData.storeId);
+      storeSearchFeedback.style.color = '#28a745';
+    } else {
+      storeSearchFeedback.textContent = 'Store found, but marker element missing.';
+      storeSearchFeedback.style.color = '#ffc107';
+    }
+    // Clear input after successful search - uncomment if desired
+    // storeSearchInput.value = '';
+  } else {
+    storeSearchFeedback.textContent = "Store ID \"".concat(searchTerm, "\" not found.");
+    storeSearchFeedback.style.color = '#dc3545'; // Red for error
+  }
+}
+
+// --- Driving Distance Helper Functions ---
+function fetchDrivingDistance(_x, _x2) {
+  return _fetchDrivingDistance.apply(this, arguments);
+}
+function _fetchDrivingDistance() {
+  _fetchDrivingDistance = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee(start, end) {
+    var url, resp, data, _t2;
+    return _regenerator().w(function (_context) {
+      while (1) switch (_context.n) {
+        case 0:
+          url = "https://router.project-osrm.org/route/v1/driving/".concat(start.lng, ",").concat(start.lat, ";").concat(end.lng, ",").concat(end.lat, "?overview=false");
+          _context.p = 1;
+          _context.n = 2;
+          return fetch(url);
+        case 2:
+          resp = _context.v;
+          if (resp.ok) {
+            _context.n = 3;
+            break;
+          }
+          throw new Error('HTTP ' + resp.status);
+        case 3:
+          _context.n = 4;
+          return resp.json();
+        case 4:
+          data = _context.v;
+          if (!(data.routes && data.routes.length > 0)) {
+            _context.n = 5;
+            break;
+          }
+          return _context.a(2, data.routes[0].distance / 1000);
+        case 5:
+          _context.n = 7;
+          break;
+        case 6:
+          _context.p = 6;
+          _t2 = _context.v;
+          console.error('Distance fetch failed:', _t2);
+        case 7:
+          return _context.a(2, null);
+      }
+    }, _callee, null, [[1, 6]]);
+  }));
+  return _fetchDrivingDistance.apply(this, arguments);
+}
+var distanceStartMarker = null;
+var distanceEndMarker = null;
+function updateDistanceBetweenMarkers() {
+  return _updateDistanceBetweenMarkers.apply(this, arguments);
+}
+function _updateDistanceBetweenMarkers() {
+  _updateDistanceBetweenMarkers = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee2() {
+    var start, end, distKm;
+    return _regenerator().w(function (_context2) {
+      while (1) switch (_context2.n) {
+        case 0:
+          if (!(!distanceStartMarker || !distanceEndMarker)) {
+            _context2.n = 1;
+            break;
+          }
+          return _context2.a(2);
+        case 1:
+          start = distanceStartMarker.getLatLng();
+          end = distanceEndMarker.getLatLng();
+          distanceFeedback.textContent = 'Calculating...';
+          distanceFeedback.style.color = '#555';
+          _context2.n = 2;
+          return fetchDrivingDistance({
+            lat: start.lat,
+            lng: start.lng
+          }, {
+            lat: end.lat,
+            lng: end.lng
+          });
+        case 2:
+          distKm = _context2.v;
+          if (distKm != null) {
+            distanceFeedback.textContent = "Driving distance: ".concat(distKm.toFixed(1), " km");
+            distanceFeedback.style.color = '#28a745';
+          } else {
+            distanceFeedback.textContent = 'Unable to retrieve distance.';
+            distanceFeedback.style.color = '#dc3545';
+          }
+        case 3:
+          return _context2.a(2);
+      }
+    }, _callee2);
+  }));
+  return _updateDistanceBetweenMarkers.apply(this, arguments);
+}
+function addDistanceMarkers() {
+  var center = map.getCenter();
+  var offset = L.latLng(center.lat, center.lng + 0.02);
+  if (distanceStartMarker) map.removeLayer(distanceStartMarker);
+  if (distanceEndMarker) map.removeLayer(distanceEndMarker);
+  distanceStartMarker = L.marker(center, {
+    draggable: true,
+    icon: greenIcon
+  }).addTo(map);
+  distanceEndMarker = L.marker(offset, {
+    draggable: true,
+    icon: redIcon
+  }).addTo(map);
+  distanceStartMarker.on('dragend', updateDistanceBetweenMarkers);
+  distanceEndMarker.on('dragend', updateDistanceBetweenMarkers);
+  updateDistanceBetweenMarkers();
+  clearDistanceMarkersButton.style.display = 'block';
+}
+function clearDistanceMarkers() {
+  if (distanceStartMarker) {
+    map.removeLayer(distanceStartMarker);
+    distanceStartMarker = null;
+  }
+  if (distanceEndMarker) {
+    map.removeLayer(distanceEndMarker);
+    distanceEndMarker = null;
+  }
+  distanceFeedback.textContent = '';
+  clearDistanceMarkersButton.style.display = 'none';
+}
+
+// --- Grid Generation (Grid Mode Only) ---
+function generateGridLayer(_x3) {
+  return _generateGridLayer.apply(this, arguments);
+}
+function _generateGridLayer() {
+  _generateGridLayer = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee3(gridSizeKm) {
+    var threshold, filterInfo;
+    return _regenerator().w(function (_context3) {
+      while (1) switch (_context3.n) {
+        case 0:
+          if (!(currentAnalysisMode !== 'grid')) {
+            _context3.n = 1;
+            break;
+          }
+          return _context3.a(2, {
+            layer: L.featureGroup(),
+            data: []
+          });
+        case 1:
+          threshold = currentGridSize === '1km' ? GRID_1KM_THRESHOLD : GRID_TOOLTIP_THRESHOLD;
+          filterInfo = currentCityFilter ? "filtered by \"".concat(currentCityFilter, "\"") : "unfiltered";
+          console.log("DEBUG: generateGridLayer START ".concat(gridSizeKm, "km (").concat(filterInfo, ")"));
+          return _context3.a(2, new Promise(function (resolve) {
+            showLoader(true);
+            try {
+              var newGridLayer = L.featureGroup();
+              var calculatedValues = [];
+              var bounds = map.getBounds().pad(0.1);
+              var southWest = bounds.getSouthWest();
+              var northEast = bounds.getNorthEast();
+              var center = map.getCenter();
+              var centerLat = center.lat;
+
+              // Basic sanity checks on map state
+              if (!southWest || !northEast || !center || isNaN(centerLat) || Math.abs(centerLat) > 85) {
+                console.warn("Invalid map state for grid generation.");
+                showLoader(false);
+                resolve({
+                  layer: L.featureGroup(),
+                  data: []
+                });
+                return;
+              }
+
+              // Compute lat/lng “delta” in degrees for the given km
+              var _getDegChange3 = getDegChange(gridSizeKm, centerLat),
+                latDelta = _getDegChange3.latDelta,
+                lngDelta = _getDegChange3.lngDelta;
+              if (!isFinite(latDelta) || !isFinite(lngDelta) || latDelta <= 0 || lngDelta <= 0) {
+                console.warn("Invalid grid delta calculated.");
+                showLoader(false);
+                resolve({
+                  layer: L.featureGroup(),
+                  data: []
+                });
+                return;
+              }
+
+              // Prepare to accumulate grid‐cell statistics
+              var totalCellsCalculated = 0;
+              var totalCellsAdded = 0;
+
+              // “Round down” the SW corner to the nearest multiple of delta, then step one extra delta
+              var startLat = Math.fround(Math.floor(southWest.lat / latDelta) * latDelta - latDelta);
+              var startLng = Math.fround(Math.floor(southWest.lng / lngDelta) * lngDelta - lngDelta);
+
+              // “Round up” the NE corner to the nearest multiple of delta, then add one delta
+              var endLat = Math.fround(Math.ceil(northEast.lat / latDelta) * latDelta + latDelta);
+              var endLng = Math.fround(Math.ceil(northEast.lng / lngDelta) * lngDelta + lngDelta);
+
+              // Gather all data points (filtered by city/test‐points if needed)
+              var allPoints = getAllDataPoints();
+              var pointsToProcess = allPoints.filter(function (p) {
+                return p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng) && (currentCityFilter === null || p.city && p.city.toUpperCase() === currentCityFilter || p.isTestPoint);
+              });
+
+              // Safeguard against runaway loops
+              var loopCount = 0;
+              var MAX_LOOP_ITERATIONS = 200000;
+
+              // Iterate over each “cell” in the grid
+              for (var lat = startLat; lat < endLat; lat += latDelta) {
+                if (latDelta <= 0 || loopCount > MAX_LOOP_ITERATIONS) break;
+                for (var lng = startLng; lng < endLng; lng += lngDelta) {
+                  loopCount++;
+                  if (lngDelta <= 0 || loopCount > MAX_LOOP_ITERATIONS) break;
+                  totalCellsCalculated++;
+                  var cellLatMax = lat + latDelta;
+                  var cellLngMax = lng + lngDelta;
+                  var cellBounds = [[lat, lng], [cellLatMax, cellLngMax]];
+
+                  // Sum up “orders” for all points inside this cell
+                  var sumOrders = 0;
+                  var _iterator4 = _createForOfIteratorHelper(pointsToProcess),
+                    _step4;
+                  try {
+                    for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+                      var point = _step4.value;
+                      if (typeof point.orders === 'number' && !isNaN(point.orders) && point.lat >= lat && point.lat < cellLatMax && point.lng >= lng && point.lng < cellLngMax) {
+                        sumOrders += point.orders;
+                      }
+                    }
+
+                    // Decide whether to draw this cell based on threshold
+                  } catch (err) {
+                    _iterator4.e(err);
+                  } finally {
+                    _iterator4.f();
+                  }
+                  var shouldAddCell = currentGridSize === '1km' ? sumOrders >= threshold : sumOrders > threshold;
+                  if (shouldAddCell) {
+                    totalCellsAdded++;
+                    calculatedValues.push(sumOrders);
+                    var color = getOrderColor(sumOrders, currentMaxColorValue);
+                    var rect = L.rectangle(cellBounds, {
+                      stroke: true,
+                      weight: 0.5,
+                      color: '#cccccc',
+                      fillColor: color,
+                      fillOpacity: 0.7
+                    });
+
+                    // Tooltip shows the order count; always‐visible when zoom level > 13
+                    var displayValue = sumOrders.toFixed(sumOrders < 10 ? 2 : sumOrders < 100 ? 1 : 0);
+                    rect.bindTooltip(displayValue, {
+                      permanent: map.getZoom() > 13,
+                      direction: 'center',
+                      className: 'grid-label',
+                      opacity: 0.9
+                    });
+
+                    // Store the raw order value on the rectangle for any future use
+                    rect._orderValue = sumOrders;
+                    newGridLayer.addLayer(rect);
+                  }
+                }
+              }
+              if (loopCount > MAX_LOOP_ITERATIONS) {
+                console.warn("Grid generation loop exceeded maximum iterations.");
+              }
+              showLoader(false);
+              console.log("Grid Generation Complete: Calculated ".concat(totalCellsCalculated, ", Added ").concat(totalCellsAdded, " cells."));
+              resolve({
+                layer: newGridLayer,
+                data: calculatedValues
+              });
+            } catch (error) {
+              console.error("Error generating grid:", error);
+              showLoader(false);
+              resolve({
+                layer: L.featureGroup(),
+                data: []
+              });
+            }
+          }));
+      }
+    }, _callee3);
+  }));
+  return _generateGridLayer.apply(this, arguments);
+}
+function showHeatmapLayer() {
+  if (heatmapLayer) {
+    map.removeLayer(heatmapLayer);
+  }
+  var heatPoints = actualDataPoints.map(function (p) {
+    return [p.lat, p.lng, Math.min(1, p.orders * 2000) // reduced from 3000
+    ];
+  });
+  heatmapLayer = L.heatLayer(heatPoints, {
+    radius: 12,
+    // smaller = sharper detail
+    blur: 10,
+    // less blur = less smudge
+    maxZoom: 16,
+    gradient: {
+      0.0: 'transparent',
+      0.2: '#ffe6e6',
+      0.4: '#ff9999',
+      0.6: '#ff4d4d',
+      1.0: '#b30000' // dark but not pitch red
+    }
+  }).addTo(map);
+}
+
+// --- Retail Store Marker Creation ---
+function createRetailStoreMarkers() {
+  // Clear all store type layers and the combined layer
+  retailLayer.clearLayers();
+  upcomingRetailLayer.clearLayers();
+  fcLayer.clearLayers();
+  upcomingFcLayer.clearLayers();
+  docpharmaLayer.clearLayers();
+  upcomingDocpharmaLayer.clearLayers();
+  bbLayer.clearLayers();
+  upcomingBbLayer.clearLayers();
+  allRetailMarkersLayer.clearLayers(); // Clear combined layer too
+
+  var addedCount = 0;
+  retailStoreData.forEach(function (data) {
+    if (!data || typeof data.lat !== 'number' || typeof data.lng !== 'number' || isNaN(data.lat) || isNaN(data.lng) || !data.storeId || Math.abs(data.lat) < 0.001 && Math.abs(data.lng) < 0.001) {
+      console.warn("Skipping invalid store data:", data);
+      return;
+    }
+    var color;
+    var typeLower = (data.type || '').toLowerCase();
+    switch (typeLower) {
+      case 'retail_store':
+        color = '#f1310f';
+        break;
+      case 'upcoming_retail_store':
+        color = '#ff8221';
+        break;
+      case 'fc':
+        color = '#3f954f';
+        break;
+      case 'upcoming_fc':
+        color = '#81d835';
+        break;
+      case 'docpharma':
+        color = '#0a22ec';
+        break;
+      case 'upcoming_docpharma':
+        color = '#2ebaea';
+        break;
+      case 'bb':
+        color = '#700ca5';
+        break;
+      case 'upcoming_bb':
+        color = '#f653f6';
+        break;
+      default:
+        color = 'grey';
+        break;
+    }
+    var marker = L.circleMarker([data.lat, data.lng], {
+      radius: RETAIL_MARKER_RADIUS,
+      fillColor: color,
+      color: color,
+      weight: 1,
+      opacity: 1,
+      fillOpacity: 0.8
+    });
+    marker.bindTooltip("<b>".concat(data.storeId, "</b><br>").concat(data.type || 'Unknown Type'));
+    marker.storeData = data; // Attach original data for later use (e.g., search)
+    // Keep a reference to each retail‐store marker by storeId
+    retailStoreMarkers[data.storeId] = marker;
+    marker.on('click', function (e) {
+      L.DomEvent.stopPropagation(e);
+      handleStoreMarkerClick(e.target);
+    });
+
+    // Add marker to the appropriate layer based on type
+    if (typeLower === 'retail_store') {
+      retailLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_retail_store') {
+      upcomingRetailLayer.addLayer(marker);
+    } else if (typeLower === 'fc') {
+      fcLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_fc') {
+      upcomingFcLayer.addLayer(marker);
+    } else if (typeLower === 'docpharma') {
+      docpharmaLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_docpharma') {
+      upcomingDocpharmaLayer.addLayer(marker);
+    } else if (typeLower === 'bb') {
+      bbLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_bb') {
+      upcomingBbLayer.addLayer(marker);
+    }
+
+    // Add to a master layer that includes all markers
+    allRetailMarkersLayer.addLayer(marker);
+    addedCount++;
+  });
+  console.log("Created ".concat(addedCount, " store/FC/New/BBNow markers."));
+  isStoreDataLoaded = true; // Mark data as loaded
+  updateADLayerVisibility(); // Ensure initial visibility and legend are correct
+  // Once retail‐store markers are in place, build the per‐store toggle list
+  initStoreToggleList();
+  updateAnalysisButtonStates(); // Update button states after stores are loaded
+}
+function initStoreToggleList() {
+  var container = document.getElementById('store-toggle-container');
+  if (!container) return; // In case HTML was not loaded
+
+  retailStoreData.forEach(function (data) {
+    // Create a <label> that wraps a <checkbox> + the storeId text
+    var label = document.createElement('label');
+    label.style.display = 'block';
+    label.style.marginBottom = '0.4em';
+    label.style.cursor = 'pointer';
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = true;
+    checkbox.id = "toggle-".concat(data.storeId);
+    checkbox.addEventListener('change', function (e) {
+      var isChecked = e.target.checked;
+      var sid = data.storeId;
+      var marker = retailStoreMarkers[sid]; // your global marker map
+
+      if (marker) {
+        var typeLower = (marker.storeData.type || '').toLowerCase();
+        var layer = null;
+
+        // Map type to correct layer
+        if (typeLower === 'retail_store') layer = retailLayer;else if (typeLower === 'upcoming_retail_store') layer = upcomingRetailLayer;else if (typeLower === 'fc') layer = fcLayer;else if (typeLower === 'upcoming_fc') layer = upcomingFcLayer;else if (typeLower === 'docpharma') layer = docpharmaLayer;else if (typeLower === 'upcoming_docpharma') layer = upcomingDocpharmaLayer;else if (typeLower === 'bb') layer = bbLayer;else if (typeLower === 'upcoming_bb') layer = upcomingBbLayer;
+
+        // Add/remove marker from appropriate layer
+        if (layer) {
+          if (isChecked) {
+            if (!layer.hasLayer(marker)) layer.addLayer(marker);
+          } else {
+            if (layer.hasLayer(marker)) layer.removeLayer(marker);
+          }
+        }
+
+        // On uncheck, remove any boundaries tied to this storeId
+        if (!isChecked) {
+          storeClickBoundaryLayer.eachLayer(function (layer) {
+            if (layer.storeId === sid) {
+              storeClickBoundaryLayer.removeLayer(layer);
+            }
+          });
+          boundaryLayer.eachLayer(function (layer) {
+            if (layer.storeId === sid) {
+              boundaryLayer.removeLayer(layer);
+            }
+          });
+        }
+      }
+    });
+
+    // Label text is the storeId
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(" ".concat(data.storeId)));
+    container.appendChild(label);
+  }); // <-- closes data.forEach(…)
+}
+
+// --- Single Store Click Boundary ---
+function handleStoreMarkerClick(marker) {
+  var _document$querySelect, _document$querySelect2;
+  // Only draw a single boundary when in Boundary mode
+  var selectedMode = (_document$querySelect = document.querySelector('input[name="analysis-mode-toggle"]:checked')) === null || _document$querySelect === void 0 ? void 0 : _document$querySelect.value;
+  if (selectedMode !== 'boundary') return; // ← Legal, because we are inside a function
+
+  clearStoreClickBoundary(); // Clear previous boundary first
+  var selectedCatchmentSize = (_document$querySelect2 = document.querySelector('input[name="grid-toggle"]:checked')) === null || _document$querySelect2 === void 0 ? void 0 : _document$querySelect2.value;
+  if (!selectedCatchmentSize || selectedCatchmentSize === 'none') {
+    storeSearchFeedback.textContent = 'Select a catchment size first.';
+    storeSearchFeedback.style.color = '#ffc107'; // Yellow warning
+    return; // ← Also legal inside the function
+  }
+
+  // Derive KM from value ('1km' -> 1, etc.)
+  var sizeKm;
+  switch (selectedCatchmentSize) {
+    case '1km':
+      sizeKm = 1;
+      break;
+    case '4km':
+      sizeKm = 4;
+      break;
+    case '8km':
+      sizeKm = 8;
+      break;
+    default:
+      return;
+    // ← Legal, returns early if something’s wrong
+  }
+  if (isNaN(sizeKm) || sizeKm <= 0) return;
+  var storeData = marker.storeData;
+  var markerLatLng = marker.getLatLng();
+  if (!markerLatLng) return;
+  var _getDegChange = getDegChange(sizeKm / 2.0, markerLatLng.lat),
+    latDeltaHalf = _getDegChange.latDelta,
+    lngDeltaHalf = _getDegChange.lngDelta;
+  if (!isFinite(latDeltaHalf) || !isFinite(lngDeltaHalf) || latDeltaHalf <= 0 || lngDeltaHalf <= 0) return;
+  var bounds = L.latLngBounds([markerLatLng.lat - latDeltaHalf, markerLatLng.lng - lngDeltaHalf], [markerLatLng.lat + latDeltaHalf, markerLatLng.lng + lngDeltaHalf]);
+  var boundaryRect = L.rectangle(bounds, BLINKING_BOUNDARY_STYLE);
+  // Tag this grid-mode rectangle with storeId so toggles can remove it later
+  boundaryRect.storeId = storeData.storeId;
+  storeClickBoundaryLayer.addLayer(boundaryRect);
+
+  // Remove this single boundary on next map click
+  map.once('click', clearStoreClickBoundary);
+} // ← This is where handleStoreMarkerClick ends
+
+function clearStoreClickBoundary() {
+  if (storeClickBoundaryLayer.getLayers().length > 0) {
+    storeClickBoundaryLayer.clearLayers();
+  }
+  // Ensure the map click listener is removed if it was added
+  map.off('click', clearStoreClickBoundary);
+}
+
+// --- Centroid Functions (Grid Mode Only) ---
+function calculateAndAddCentroids() {
+  if (currentAnalysisMode !== 'grid') return;
+  centroidLayer.clearLayers();
+  if (!activeGridLayer || currentGridSize === 'none' || !map.hasLayer(activeGridLayer)) {
+    if (areCentroidsVisible) toggleCentroidVisibility(false); // Turn off if grid disappears
+    return;
+  }
+  var pointsInView = getAllDataPoints().filter(function (p) {
+    return p && typeof p.lat === 'number' && typeof p.lng === 'number' && !isNaN(p.lat) && !isNaN(p.lng) && map.getBounds().contains([p.lat, p.lng]) && (currentCityFilter === null || p.city && p.city.toUpperCase() === currentCityFilter || p.isTestPoint);
+  });
+  if (pointsInView.length === 0) {
+    console.log("No data points in current view to calculate centroids for.");
+    return; // No points, no centroids
+  }
+  var centroidsAdded = 0;
+  activeGridLayer.eachLayer(function (gridCell) {
+    if (gridCell instanceof L.Rectangle && gridCell.getBounds) {
+      var cellBounds = gridCell.getBounds();
+      var pointsInCell = [];
+      var sumLat = 0;
+      var sumLng = 0;
+
+      // Optimize point filtering slightly
+      var cellSouth = cellBounds.getSouth();
+      var cellNorth = cellBounds.getNorth();
+      var cellWest = cellBounds.getWest();
+      var cellEast = cellBounds.getEast();
+      var _iterator = _createForOfIteratorHelper(pointsInView),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var point = _step.value;
+          // Check coordinates directly (potentially faster than bounds.contains for many points)
+          if (point.lat >= cellSouth && point.lat < cellNorth && point.lng >= cellWest && point.lng < cellEast) {
+            pointsInCell.push(point);
+            sumLat += point.lat;
+            sumLng += point.lng;
+          }
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+      if (pointsInCell.length > 0) {
+        var centroidLat = sumLat / pointsInCell.length;
+        var centroidLng = sumLng / pointsInCell.length;
+        var centroidMarker = L.circleMarker([centroidLat, centroidLng], CENTROID_MARKER_OPTIONS);
+        centroidMarker.bindTooltip("Points: ".concat(pointsInCell.length));
+        centroidLayer.addLayer(centroidMarker);
+        centroidsAdded++;
+      }
+    }
+  });
+  console.log("Calculated and added ".concat(centroidsAdded, " centroids."));
+  // Add layer to map only if visible and centroids were actually added
+  if (centroidsAdded > 0 && !map.hasLayer(centroidLayer) && areCentroidsVisible) {
+    centroidLayer.addTo(map);
+  } else if (centroidsAdded === 0 && map.hasLayer(centroidLayer)) {
+    // Remove layer if no centroids were generated but it was previously visible
+    map.removeLayer(centroidLayer);
+  }
+}
+function toggleCentroidVisibility(show) {
+  if (currentAnalysisMode !== 'grid') {
+    // Ensure centroids are only for grid mode
+    areCentroidsVisible = false;
+    if (map.hasLayer(centroidLayer)) map.removeLayer(centroidLayer);
+    centroidLayer.clearLayers();
+    centroidToggleButton.classList.remove('active');
+    centroidToggleButton.textContent = "Show (Boundary Mode)";
+    centroidToggleButton.disabled = true;
+    return;
+  }
+  areCentroidsVisible = show;
+  if (show) {
+    if (activeGridLayer && currentGridSize !== 'none' && map.hasLayer(activeGridLayer)) {
+      calculateAndAddCentroids(); // Recalculate when turned on
+      // Only add to map if centroids were actually calculated
+      if (centroidLayer.getLayers().length > 0 && !map.hasLayer(centroidLayer)) {
+        centroidLayer.addTo(map);
+      }
+      centroidToggleButton.classList.add('active');
+      centroidToggleButton.textContent = "Hide Cell Centroids";
+      centroidToggleButton.disabled = false;
+    } else {
+      // Cannot show if no grid is active
+      areCentroidsVisible = false; // Revert state
+      centroidToggleButton.classList.remove('active');
+      centroidToggleButton.disabled = true;
+      centroidToggleButton.textContent = "Show (No Grid)";
+      if (map.hasLayer(centroidLayer)) map.removeLayer(centroidLayer); // Ensure removed
+      centroidLayer.clearLayers(); // Clear any potential stale data
+    }
+  } else {
+    // Hide
+    if (map.hasLayer(centroidLayer)) map.removeLayer(centroidLayer);
+    // Don't clear layers immediately, maybe user toggles back quickly
+    // centroidLayer.clearLayers(); // Can uncomment if memory is a huge concern
+    centroidToggleButton.classList.remove('active');
+    centroidToggleButton.textContent = "Show Cell Centroids";
+    // Disable only if no grid is active, otherwise allow re-enabling
+    centroidToggleButton.disabled = currentGridSize === 'none' || !activeGridLayer || !map.hasLayer(activeGridLayer);
+  }
+}
+
+// --- UI Update Functions ---
+function setActiveCityButton(clickedButton) {
+  cityButtons.forEach(function (btn) {
+    return btn.classList.remove('active');
+  });
+  if (clickedButton) {
+    clickedButton.classList.add('active');
+  }
+}
+function focusOnCity(button) {
+  clearAnalysisResults();
+  clearStoreClickBoundary();
+  storeSearchFeedback.textContent = ''; // Clear search feedback
+
+  var lat = parseFloat(button.getAttribute('data-lat'));
+  var lng = parseFloat(button.getAttribute('data-lng'));
+  var cityDataAttr = button.getAttribute('data-city');
+  var cityNameToFilter = cityDataAttr ? cityDataAttr.toUpperCase() : null;
+  var cityDisplayName = button.textContent || "Selected City"; // Get display name
+
+  var filterChanged = false;
+  canonicalView = {
+    lat: lat,
+    lng: lng,
+    zoom: CITY_ZOOM
+  }; // Update canonical view
+
+  if (currentCityFilter !== cityNameToFilter) {
+    console.log("Changing city filter from ".concat(currentCityFilter, " to ").concat(cityNameToFilter));
+    currentCityFilter = cityNameToFilter;
+    filterChanged = true;
+  }
+  setActiveCityButton(button);
+  if (sidebarTitle) sidebarTitle.textContent = cityDisplayName; // Update sidebar title
+
+  if (!isNaN(lat) && !isNaN(lng)) {
+    map.flyTo([lat, lng], CITY_ZOOM, {
+      animate: true,
+      duration: FLY_DURATION
+    });
+    // Set flag to regenerate grid *after* flyTo finishes (handled in moveend)
+    if (currentAnalysisMode === 'grid' && currentGridSize !== 'none') {
+      needsGridRegeneration = true;
+    } else {
+      needsGridRegeneration = false;
+    }
+  } else {
+    console.error("Invalid coordinates for city:", cityDisplayName);
+    needsGridRegeneration = false; // Don't regenerate if flyTo failed
+  }
+}
+function showIndiaOverview() {
+  clearAnalysisResults();
+  clearStoreClickBoundary();
+  storeSearchFeedback.textContent = ''; // Clear search feedback
+
+  var filterChanged = false;
+  canonicalView = {
+    lat: INDIA_CENTER[0],
+    lng: INDIA_CENTER[1],
+    zoom: INDIA_ZOOM
+  }; // Update canonical view
+
+  if (currentCityFilter !== null) {
+    console.log("Changing city filter from ".concat(currentCityFilter, " to null (India View)"));
+    currentCityFilter = null;
+    filterChanged = true;
+  }
+  setActiveCityButton(null); // Deactivate city buttons
+  if (sidebarTitle) sidebarTitle.textContent = "India Overview"; // Update sidebar title
+
+  map.flyTo(INDIA_CENTER, INITIAL_ZOOM, {
+    animate: true,
+    duration: FLY_DURATION
+  });
+
+  // Set flag to regenerate grid *after* flyTo finishes (handled in moveend)
+  if (currentAnalysisMode === 'grid' && currentGridSize !== 'none') {
+    needsGridRegeneration = true;
+  } else {
+    needsGridRegeneration = false;
+  }
+}
+
+// Update visibility of store type layers and legend
+function updateADLayerVisibility() {
+  toggleLayer(retailCheckbox, retailLayer);
+  toggleLayer(upcomingRetailCheckbox, upcomingRetailLayer);
+  toggleLayer(fcCheckbox, fcLayer);
+  toggleLayer(upcomingFcCheckbox, upcomingFcLayer);
+  toggleLayer(docpharmaCheckbox, docpharmaLayer);
+  toggleLayer(upcomingDocpharmaCheckbox, upcomingDocpharmaLayer);
+  toggleLayer(bbCheckbox, bbLayer);
+  toggleLayer(upcomingBbCheckbox, upcomingBbLayer);
+
+  // Update legend visibility based on whether any layer is currently visible
+  var anyADVisible = [retailLayer, upcomingRetailLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].some(function (layer) {
+    return map.hasLayer(layer);
+  });
+  retailLegend.style.display = anyADVisible ? 'block' : 'none';
+
+  // Also update analysis button states as visibility affects analysis readiness
+  updateAnalysisButtonStates();
+}
+
+// NEW: Function to update the state of analysis and boundary plot buttons
+function updateAnalysisButtonStates() {
+  var anyADLayerHasMarkersAndIsVisible = areAnyADLayersVisibleAndLoaded();
+
+  // Analyze Store Coverage Button
+  analyzeStoreCoverageButton.disabled = !isStoreDataLoaded || currentAnalysisMode === 'grid' && (currentGridSize === 'none' || !activeGridLayer || !map.hasLayer(activeGridLayer) || !anyADLayerHasMarkersAndIsVisible) || currentAnalysisMode === 'boundary' && (boundaryLayer.getLayers().length === 0 || !anyADLayerHasMarkersAndIsVisible);
+
+  // Plot Boundaries Button
+  var anyBoundarySizeSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
+    return cb.checked;
+  });
+  plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || !anyBoundarySizeSelected || !anyADLayerHasMarkersAndIsVisible; // Cannot plot if no stores loaded or visible
+}
+function updateBoundaryHeatmapVisibility() {
+  var heatmapSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
+    return cb.checked && cb.value === 'heatmap';
+  });
+  if (heatmapSelected) {
+    showHeatmapLayer();
+  } else if (heatmapLayer && map.hasLayer(heatmapLayer)) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+  }
+}
+
+// --- Grid Summary Calculation (Grid Mode Only) ---
+function calculateAndDisplayGridSummary(values) {
+  if (currentAnalysisMode !== 'grid') {
+    gridSummaryContainer.innerHTML = '<div class="placeholder">N/A in Boundary Mode</div>';
+    currentGridValues = []; // Clear grid values
+    processDataButton.disabled = true; // Disable copy button
+    return;
+  }
+  currentGridValues = values ? _toConsumableArray(values) : []; // Store a copy
+  currentGridValues.sort(function (a, b) {
+    return b - a;
+  }); // Sort descending for percentile calculation
+
+  if (currentGridValues.length === 0 || currentGridSize === 'none') {
+    gridSummaryContainer.innerHTML = placeholderSummary; // Show placeholder
+    processDataButton.disabled = true; // Disable copy button
+    return;
+  }
+  var totalCount = currentGridValues.length;
+  var sumOrdersTotal = currentGridValues.reduce(function (acc, val) {
+    return acc + val;
+  }, 0);
+
+  // Prevent division by zero or calculations on negligible totals
+  if (sumOrdersTotal < 1e-9) {
+    gridSummaryContainer.innerHTML = "<h3>Grid Summary</h3><table id=\"grid-summary-table\"><tbody>\n                    <tr><td>Cells for 25% Orders</td><td>0</td></tr>\n                    <tr><td>Cells for 50% Orders</td><td>0</td></tr>\n                    <tr><td>Cells for 75% Orders</td><td>0</td></tr>\n                    <tr><td>Total Cells</td><td>".concat(totalCount, "</td></tr>\n                    <tr><td>Total Orders in Grid</td><td>").concat(sumOrdersTotal.toFixed(2), "</td></tr>\n                </tbody></table>");
+    processDataButton.disabled = false; // Enable copy even if total is zero
+    return;
+  }
+  var count25 = 0,
+    count50 = 0,
+    count75 = 0;
+  var sumForThreshold = 0;
+  var target25 = 0.25 * sumOrdersTotal;
+  var target50 = 0.50 * sumOrdersTotal;
+  var target75 = 0.75 * sumOrdersTotal;
+  for (var i = 0; i < totalCount; i++) {
+    var currentValue = currentGridValues[i];
+    sumForThreshold += currentValue;
+    if (count25 === 0 && sumForThreshold >= target25) count25 = i + 1;
+    if (count50 === 0 && sumForThreshold >= target50) count50 = i + 1;
+    if (count75 === 0 && sumForThreshold >= target75) {
+      count75 = i + 1;
+      break; // Optimization: stop once 75% is reached
+    }
+  }
+
+  // Handle cases where even the full sum doesn't reach the target (shouldn't happen with >0 total)
+  if (count25 === 0 && totalCount > 0) count25 = totalCount;
+  if (count50 === 0 && totalCount > 0) count50 = totalCount;
+  if (count75 === 0 && totalCount > 0) count75 = totalCount;
+  var thresholdForSummary = currentGridSize === '1km' ? GRID_1KM_THRESHOLD : GRID_TOOLTIP_THRESHOLD;
+  var operatorForSummary = currentGridSize === '1km' ? '≥' : '>';
+  var tableHtml = "<h3>Grid Summary</h3><table id=\"grid-summary-table\"><tbody>\n                <tr><td>Cells for 25% Orders</td><td>".concat(count25, "</td></tr>\n                <tr><td>Cells for 50% Orders</td><td>").concat(count50, "</td></tr>\n                <tr><td>Cells for 75% Orders</td><td>").concat(count75, "</td></tr>\n                <tr><td>Total Cells (").concat(operatorForSummary, " ").concat(thresholdForSummary.toFixed(1), ")</td><td>").concat(totalCount, "</td></tr>\n                <tr><td>Total Orders in Grid</td><td>").concat(sumOrdersTotal.toFixed(2), "</td></tr>\n            </tbody></table>");
+  gridSummaryContainer.innerHTML = tableHtml;
+  processDataButton.disabled = false; // Enable copy button
+}
+
+// --- Clear Data Function (Handles Both Modes) ---
+function clearRightSidebarData() {
+  console.log("Clearing displayed data (grid/boundaries/summary/analysis).");
+  if (activeGridLayer && map.hasLayer(activeGridLayer)) {
+    map.removeLayer(activeGridLayer);
+    activeGridLayer = null;
+  }
+  clearBoundaries(); // Clear boundary layers and update buttons
+  calculateAndDisplayGridSummary([]); // Clear summary table
+  clearAnalysisResults(); // Clear analysis table/slider/highlights
+  clearStoreClickBoundary(); // Clear any temporary store click boundary
+
+  // Reset grid toggle to 'None' and trigger its handler
+  var noneRadio = document.getElementById('grid-none');
+  if (noneRadio && !noneRadio.checked) {
+    noneRadio.checked = true;
+    // Manually trigger the change handler logic *without* map interaction flags
+    handleGridToggle('none', false);
+  } else {
+    // If 'None' was already selected, ensure buttons are still disabled
+    updateAnalysisButtonStates(); // Re-evaluate button states
+    processDataButton.disabled = true;
+  }
+  if (areCentroidsVisible) {
+    toggleCentroidVisibility(false); // Hide centroids
+  }
+
+  // Visual feedback for the button
+  var originalText = eraseDataButton.textContent; // Store original text
+  eraseDataButton.textContent = "Cleared!";
+  eraseDataButton.disabled = true;
+  setTimeout(function () {
+    eraseDataButton.textContent = originalText; // Restore original text
+    eraseDataButton.disabled = false; // Re-enable
+  }, 1200);
+}
+
+// --- Grid/Catchment Size Toggling (Handles Both Modes) ---
+function handleGridToggle(_x4) {
+  return _handleGridToggle.apply(this, arguments);
+} // --- Plot Boundaries (Boundary Mode Only) ---
+function _handleGridToggle() {
+  _handleGridToggle = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4(selectedValue) {
+    var triggeredByMoveEnd,
+      sizeKm,
+      _yield$generateGridLa,
+      layer,
+      data,
+      _args4 = arguments,
+      _t3;
+    return _regenerator().w(function (_context4) {
+      while (1) switch (_context4.n) {
+        case 0:
+          triggeredByMoveEnd = _args4.length > 1 && _args4[1] !== undefined ? _args4[1] : false;
+          console.log("Grid toggle changed to: ".concat(selectedValue, ", Triggered by move: ").concat(triggeredByMoveEnd));
+          clearAnalysisResults(); // Clear previous analysis results
+          clearStoreClickBoundary(); // Clear any store click boundary
+          clearBoundaries(); // Clear plotted boundaries (relevant for boundary mode too)
+
+          // Prevent multiple regenerations if triggered rapidly
+          if (!isRegenerationInProgress) {
+            _context4.n = 1;
+            break;
+          }
+          console.log("Grid regeneration already in progress, skipping.");
+          return _context4.a(2);
+        case 1:
+          isRegenerationInProgress = true; // Set flag
+
+          currentGridSize = selectedValue; // Update global state
+
+          // --- UI Updates (Immediate) ---
+          // Handle centroid button state (always update regardless of mode)
+          if (areCentroidsVisible) {
+            if (map.hasLayer(centroidLayer)) map.removeLayer(centroidLayer); // Hide visually
+            // Don't clear layer data yet, just hide
+          }
+          centroidToggleButton.disabled = true; // Disable while processing
+          centroidToggleButton.classList.remove('active'); // Remove active state
+          centroidToggleButton.textContent = "Processing...";
+
+          // Clear existing grid layer from map if present
+          if (activeGridLayer && map.hasLayer(activeGridLayer)) {
+            map.removeLayer(activeGridLayer);
+            activeGridLayer = null; // Clear reference
+          }
+          // Clear heatmap layer if present
+          if (heatmapLayer && map.hasLayer(heatmapLayer)) {
+            map.removeLayer(heatmapLayer);
+            heatmapLayer = null;
+          }
+
+          // If selected is heatmap, skip grid logic
+          if (!(selectedValue === 'heatmap')) {
+            _context4.n = 2;
+            break;
+          }
+          showHeatmapLayer();
+          document.getElementById('grid-summary-container').style.display = 'none';
+          document.getElementById('btn-toggle-centroids').style.display = 'none';
+          isRegenerationInProgress = false;
+          updateAnalysisButtonStates(); // Update analysis button state for heatmap
+          return _context4.a(2);
+        case 2:
+          document.getElementById('grid-summary-container').style.display = 'block'; // Make sure it's visible again
+          document.getElementById('btn-toggle-centroids').style.display = 'block';
+        case 3:
+          // Reset grid summary and disable related buttons immediately
+          currentGridValues = [];
+          calculateAndDisplayGridSummary(currentGridValues);
+          processDataButton.disabled = true;
+          // analyzeStoreCoverageButton.disabled = true; // This will be handled by updateAnalysisButtonStates()
+          copyStoreCoverageButton.disabled = true; // Analysis needs to run first
+
+          // Update Boundary mode button state - will be handled by updateAnalysisButtonStates
+          // plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || selectedValue === 'none' || !areRetailStoresVisible;
+
+          // --- Grid Generation (Only in Grid Mode) ---
+          if (!(currentAnalysisMode === 'grid' && selectedValue !== 'none')) {
+            _context4.n = 13;
+            break;
+          }
+          sizeKm = parseInt(selectedValue.replace('km', ''), 10); // Derive KM from value
+          if (!(!isNaN(sizeKm) && sizeKm > 0)) {
+            _context4.n = 11;
+            break;
+          }
+          _context4.p = 4;
+          if (triggeredByMoveEnd) {
+            _context4.n = 5;
+            break;
+          }
+          console.log("Setting view to canonical before grid generation");
+          map.setView([canonicalView.lat, canonicalView.lng], canonicalView.zoom, {
+            animate: false,
+            noMoveStart: true
+          });
+          _context4.n = 5;
+          return new Promise(function (resolve) {
+            return setTimeout(resolve, 50);
+          });
+        case 5:
+          if (!(currentGridSize !== selectedValue || currentAnalysisMode !== 'grid')) {
+            _context4.n = 6;
+            break;
+          }
+          console.log("State changed during grid toggle, aborting generation.");
+          isRegenerationInProgress = false;
+          showLoader(false);
+          return _context4.a(2);
+        case 6:
+          console.log("Generating grid for ".concat(sizeKm, "km..."));
+          _context4.n = 7;
+          return generateGridLayer(sizeKm);
+        case 7:
+          _yield$generateGridLa = _context4.v;
+          layer = _yield$generateGridLa.layer;
+          data = _yield$generateGridLa.data;
+          if (!(currentGridSize !== selectedValue || currentAnalysisMode !== 'grid')) {
+            _context4.n = 8;
+            break;
+          }
+          console.log("State changed *after* grid generation, discarding results.");
+          isRegenerationInProgress = false;
+          showLoader(false);
+          return _context4.a(2);
+        case 8:
+          activeGridLayer = layer; // Store the new layer
+          calculateAndDisplayGridSummary(data); // Update summary with new data
+
+          if (activeGridLayer && data.length > 0) {
+            map.addLayer(activeGridLayer); // Add new grid to map
+            centroidToggleButton.disabled = false; // Enable centroid button
+            processDataButton.disabled = false; // Enable copy grid data button
+            // Enable analysis only if stores are loaded and visible - now handled by updateAnalysisButtonStates
+
+            // Update centroid button text based on visibility state
+            if (areCentroidsVisible) {
+              calculateAndAddCentroids(); // Recalculate and show if needed
+              centroidToggleButton.textContent = "Hide Cell Centroids";
+              centroidToggleButton.classList.add('active');
+            } else {
+              centroidToggleButton.textContent = "Show Cell Centroids";
+              centroidToggleButton.classList.remove('active');
+            }
+          } else {
+            // Grid generated but was empty or errored
+            console.log("Grid generated but is empty or invalid.");
+            centroidToggleButton.disabled = true;
+            centroidToggleButton.textContent = "Show (No Grid)";
+            processDataButton.disabled = true;
+            // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+            if (areCentroidsVisible) toggleCentroidVisibility(false); // Ensure off
+          }
+          _context4.n = 10;
+          break;
+        case 9:
+          _context4.p = 9;
+          _t3 = _context4.v;
+          console.error("Error during grid generation or processing:", _t3);
+          showLoader(false); // Ensure loader is hidden on error
+          calculateAndDisplayGridSummary([]); // Clear summary
+          centroidToggleButton.disabled = true;
+          centroidToggleButton.textContent = "Show (Error)";
+          // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+          processDataButton.disabled = true;
+          if (areCentroidsVisible) toggleCentroidVisibility(false);
+        case 10:
+          _context4.n = 12;
+          break;
+        case 11:
+          // Invalid size derived (e.g., 'none' or unexpected value)
+          showLoader(false); // Hide loader if it was shown
+          console.log("Invalid grid size selected.");
+          centroidToggleButton.disabled = true;
+          centroidToggleButton.textContent = "Show (Invalid)";
+          // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+          processDataButton.disabled = true;
+          if (areCentroidsVisible) toggleCentroidVisibility(false);
+        case 12:
+          _context4.n = 14;
+          break;
+        case 13:
+          // --- Non-Grid Mode or 'None' selected ---
+          showLoader(false); // Ensure loader is off
+          console.log("Grid size set to 'none' or not in grid mode.");
+          if (activeGridLayer && map.hasLayer(activeGridLayer)) {
+            map.removeLayer(activeGridLayer); // Ensure removed
+            activeGridLayer = null;
+          }
+          calculateAndDisplayGridSummary([]); // Clear summary
+          centroidToggleButton.disabled = true; // Disable centroids
+          centroidToggleButton.textContent = currentAnalysisMode === 'grid' ? "Show (No Grid)" : "Show (Boundary Mode)";
+          processDataButton.disabled = true; // Disable grid copy
+          // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+          if (areCentroidsVisible) toggleCentroidVisibility(false); // Ensure centroids off
+
+          // Re-evaluate boundary plot button state (might be enabled if size != 'none' and stores visible)
+          // if (currentAnalysisMode === 'boundary') {
+          //    plotBoundariesButton.disabled = selectedValue === 'none' || !areAnyADLayersVisibleAndLoaded(); // Handled by updateAnalysisButtonStates
+          // }
+        case 14:
+          updateAnalysisButtonStates(); // Call after all layer changes
+          isRegenerationInProgress = false; // Release flag
+          console.log("Grid toggle processing finished.");
+        case 15:
+          return _context4.a(2);
+      }
+    }, _callee4, null, [[4, 9]]);
+  }));
+  return _handleGridToggle.apply(this, arguments);
+}
+function plotBoundaries() {
+  if (currentAnalysisMode !== 'boundary') return; // Only in boundary mode
+  clearBoundaries(); // Clear previous boundaries
+  clearAnalysisResults(); // Clear previous analysis
+  clearStoreClickBoundary(); // Clear temporary click boundaries
+
+  var selectedSizes = Array.from(boundaryCatchmentCheckboxes).filter(function (cb) {
+    return cb.checked;
+  }).map(function (cb) {
+    return cb.value;
+  });
+  if (selectedSizes.length === 0) {
+    alert("Please select at least one catchment size before plotting boundaries.");
+    plotBoundariesButton.disabled = true;
+    return;
+  }
+  if (!areAnyADLayersVisibleAndLoaded()) {
+    // Check if any AD layers are visible
+    alert("Please enable at least one AD Type checkbox and ensure some are visible to plot boundaries.");
+    return;
+  }
+  var includesHeatmap = selectedSizes.includes('heatmap');
+  var sizeKmValues = selectedSizes.filter(function (val) {
+    return val !== 'heatmap';
+  }).map(function (val) {
+    switch (val) {
+      case '1km':
+        return 1;
+      case '4km':
+        return 4;
+      case '8km':
+        return 8;
+      default:
+        console.error('Invalid catchment size for plotting:', val);
+        return NaN;
+    }
+  }).filter(function (num) {
+    return !isNaN(num) && num > 0;
+  });
+  if (sizeKmValues.length === 0 && !includesHeatmap) return;
+  if (includesHeatmap) {
+    showHeatmapLayer();
+  } else if (heatmapLayer && map.hasLayer(heatmapLayer)) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+  }
+  showLoader(true);
+  var plottedCount = 0;
+  var currentMapBounds = map.getBounds();
+
+  // Iterate through all markers from *all* AD layers to find visible ones
+  allRetailMarkersLayer.eachLayer(function (marker) {
+    // Use the combined layer for iterating all markers
+    var markerLatLng = marker.getLatLng();
+    var storeData = marker.storeData;
+
+    // Check if the marker's *specific layer* is currently on the map AND if the marker itself is within view
+    var isMarkerLayerVisible = false;
+    var typeLower = (storeData.type || '').toLowerCase();
+    if (typeLower === 'retail_store' && map.hasLayer(retailLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_retail_store' && map.hasLayer(upcomingRetailLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'fc' && map.hasLayer(fcLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_fc' && map.hasLayer(upcomingFcLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'docpharma' && map.hasLayer(docpharmaLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_docpharma' && map.hasLayer(upcomingDocpharmaLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'bb' && map.hasLayer(bbLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_bb' && map.hasLayer(upcomingBbLayer)) {
+      isMarkerLayerVisible = true;
+    }
+    var storeToggle = document.getElementById("toggle-".concat(storeData.storeId));
+    if (isMarkerLayerVisible && (!storeToggle || storeToggle.checked) && markerLatLng && currentMapBounds.contains(markerLatLng)) {
+      // Ensure marker has valid data needed for the boundary
+      if (!storeData || !storeData.storeId || !markerLatLng) return;
+      var centerLat = markerLatLng.lat;
+      var centerLng = markerLatLng.lng;
+      sizeKmValues.forEach(function (sizeKm) {
+        var halfKm = sizeKm / 2.0;
+        var _getDegChange2 = getDegChange(halfKm, centerLat),
+          latDeltaHalf = _getDegChange2.latDelta,
+          lngDeltaHalf = _getDegChange2.lngDelta;
+
+        // Check for valid delta calculation
+        if (!isFinite(latDeltaHalf) || !isFinite(lngDeltaHalf) || latDeltaHalf <= 0 || lngDeltaHalf <= 0) {
+          console.warn("Could not calculate valid boundary for store ".concat(storeData.storeId));
+          return;
+        }
+        var sw = [centerLat - latDeltaHalf, centerLng - lngDeltaHalf];
+        var ne = [centerLat + latDeltaHalf, centerLng + lngDeltaHalf];
+        var bounds = L.latLngBounds(sw, ne);
+
+        // Create the boundary rectangle
+        var boundaryRect = L.rectangle(bounds, BLINKING_BOUNDARY_STYLE);
+        boundaryRect.storeId = storeData.storeId; // Attach store ID
+        boundaryRect.boundaryBounds = bounds; // Attach bounds for analysis
+        boundaryLayer.addLayer(boundaryRect);
+
+        // Boundary rectangle added without blinking
+
+        plottedCount++;
+      });
+    }
+  });
+  showLoader(false);
+  updateAnalysisButtonStates(); // Update analysis button state after plotting
+  copyStoreCoverageButton.disabled = true; // Analysis hasn't run yet
+
+  if (plottedCount === 0 && areAnyADLayersVisibleAndLoaded()) {
+    // Check if stores were visible but none in map view
+    alert("No ADs are currently visible in the map view to plot boundaries for.");
+  }
+  console.log("Plotted ".concat(plottedCount, " boundaries."));
+}
+function clearBoundaries() {
+  if (boundaryLayer.getLayers().length > 0) {
+    console.log("Clearing boundaries...");
+    boundaryLayer.eachLayer(function (layer) {
+      // Nothing extra to remove
+    });
+    boundaryLayer.clearLayers();
+    updateAnalysisButtonStates(); // Update analysis button state after clearing
+    copyStoreCoverageButton.disabled = true; // Analysis results are cleared
+  }
+  if (heatmapLayer && map.hasLayer(heatmapLayer)) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+  }
+}
+
+// --- Store Coverage Analysis Functions ---
+// Run analysis on REAL data + any TEST data
+function runAnalysis() {
+  clearAnalysisResults(); // Clear previous results display
+  clearStoreClickBoundary(); // Clear temporary marker boundary
+  var allData = getAllDataPoints(); // Combine actual and test data
+
+  if (allData.length === 0) {
+    alert("No data points (actual or test) available to analyze.");
+    return;
+  }
+  console.log("Running analysis with combined data (".concat(allData.length, " points)"));
+  if (currentAnalysisMode === 'grid') {
+    analyzeGridCoverage(allData);
+  } else if (currentAnalysisMode === 'boundary') {
+    analyzeBoundaryCoverage(allData);
+  } else {
+    console.error("Unknown analysis mode:", currentAnalysisMode);
+  }
+}
+
+// Modified to accept data source and use it for summation
+function analyzeGridCoverage(dataSource) {
+  console.log("Starting Grid Coverage Analysis...");
+  analysisResultsTitle.textContent = "Grid Analysis Results";
+  if (currentGridSize === 'none' || !activeGridLayer || !map.hasLayer(activeGridLayer)) {
+    storeCoverageTableContainer.innerHTML = '<div class="placeholder">Error: No grid active. Select a catchment size.</div>';
+    storeCoverageAnalysisDiv.style.display = 'block';
+    updateAnalysisButtonStates(); // Ensure correct state
+    copyStoreCoverageButton.disabled = true;
+    updateHighlightedGrid(0); // Clear highlights
+    return;
+  }
+  if (!areAnyADLayersVisibleAndLoaded()) {
+    storeCoverageTableContainer.innerHTML = '<div class="placeholder">Error: Enable at least one AD Type checkbox first.</div>';
+    storeCoverageAnalysisDiv.style.display = 'block';
+    updateAnalysisButtonStates(); // Ensure correct state
+    copyStoreCoverageButton.disabled = true;
+    updateHighlightedGrid(0);
+    return;
+  }
+  showLoader(true);
+  var tempCoveredCellsMap = new Map();
+  var processedCells = 0;
+
+  // Collect all visible markers from all store layers
+  var visibleStores = [];
+  [retailLayer, upcomingRetailLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].forEach(function (layer) {
+    if (map.hasLayer(layer)) layer.eachLayer(function (m) {
+      return visibleStores.push(m);
+    });
+  });
+
+  // Further filter to only include stores currently in the map bounds
+  var visibleStoresInBounds = visibleStores.filter(function (marker) {
+    return map.getBounds().contains(marker.getLatLng());
+  });
+  if (visibleStoresInBounds.length === 0) {
+    console.log("No ADs are visible in the current map view for analysis.");
+    storeCoverageTableContainer.innerHTML = '<div class="placeholder">No ADs visible in map view to analyze coverage for.</div>';
+    storeCoverageAnalysisDiv.style.display = 'block';
+    updateAnalysisButtonStates(); // Ensure correct state
+    copyStoreCoverageButton.disabled = true;
+    updateHighlightedGrid(0);
+    showLoader(false);
+    return;
+  }
+  activeGridLayer.eachLayer(function (cell) {
+    // Check if it's a valid grid cell rectangle with bounds
+    if (cell instanceof L.Rectangle && cell.getBounds && typeof cell._orderValue === 'number') {
+      // cell._orderValue is based on *all* data always
+      processedCells++;
+      var cellBounds = cell.getBounds();
+      var cellId = cell._leaflet_id;
+      var coveringStoreIds = [];
+
+      // Check which visible stores cover this cell
+      var _iterator2 = _createForOfIteratorHelper(visibleStoresInBounds),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var marker = _step2.value;
+          // Use pre-filtered visible stores in bounds
+          var markerLatLng = marker.getLatLng();
+          var storeData = marker.storeData;
+          // Check contains and validity
+          if (storeData && storeData.storeId && markerLatLng && cellBounds.contains(markerLatLng)) {
+            coveringStoreIds.push(storeData.storeId);
+          }
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+      if (coveringStoreIds.length > 0) {
+        // Calculate sum ONLY from the relevant dataSource (passed into this function) within this specific cell
+        var sumOrdersInCellFromSource = 0;
+        var cellSouth = cellBounds.getSouth();
+        var cellNorth = cellBounds.getNorth();
+        var cellWest = cellBounds.getWest();
+        var cellEast = cellBounds.getEast();
+        var _iterator3 = _createForOfIteratorHelper(dataSource),
+          _step3;
+        try {
+          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+            var point = _step3.value;
+            // Check point validity and if it falls within the cell bounds
+            if (point && typeof point.orders === 'number' && !isNaN(point.orders) && point.lat >= cellSouth && point.lat < cellNorth && point.lng >= cellWest && point.lng < cellEast) {
+              sumOrdersInCellFromSource += point.orders;
+            }
+          }
+
+          // Only store the cell result if the *specific data source* contributed orders > 0 to it
+        } catch (err) {
+          _iterator3.e(err);
+        } finally {
+          _iterator3.f();
+        }
+        if (sumOrdersInCellFromSource > 1e-9) {
+          // Use epsilon for float comparison
+          var uniqueStoreIds = _toConsumableArray(new Set(coveringStoreIds)); // Remove duplicates if any
+          // Store the calculated sum from the specific source, NOT the grid's total _orderValue
+          tempCoveredCellsMap.set(cellId, {
+            value: sumOrdersInCellFromSource,
+            cell: cell,
+            // Keep reference to original cell for highlighting
+            storeIds: uniqueStoreIds
+          });
+        }
+      }
+    }
+  });
+
+  // Store results in the main variable for display/copy, sorted by the calculated value
+  coveredGridCellsData = Array.from(tempCoveredCellsMap.values()).sort(function (a, b) {
+    return b.value - a.value;
+  });
+  showLoader(false);
+  console.log("Processed ".concat(processedCells, " grid cells. Found ").concat(coveredGridCellsData.length, " cells covered by stores with orders."));
+  displayAnalysisResults(); // Update the UI table and slider
+}
+
+// Modified to accept data source
+function analyzeBoundaryCoverage(dataSource) {
+  console.log("Starting Boundary Coverage Analysis...");
+  analysisResultsTitle.textContent = "Boundary Analysis Results";
+  var boundaries = boundaryLayer.getLayers();
+  if (boundaries.length === 0) {
+    storeCoverageTableContainer.innerHTML = '<div class="placeholder">Error: Plot boundaries first using the button above.</div>';
+    storeCoverageAnalysisDiv.style.display = 'block';
+    updateAnalysisButtonStates(); // Ensure correct state
+    copyStoreCoverageButton.disabled = true;
+    return;
+  }
+  if (!areAnyADLayersVisibleAndLoaded()) {
+    storeCoverageTableContainer.innerHTML = '<div class="placeholder">Error: Enable at least one AD Type checkbox first.</div>';
+    storeCoverageAnalysisDiv.style.display = 'block';
+    updateAnalysisButtonStates(); // Ensure correct state
+    copyStoreCoverageButton.disabled = true;
+    return;
+  }
+  showLoader(true);
+  boundaryAnalysisResults = []; // Clear previous results
+  var pointOverlapMap = new Map(); // Map: pointIndex -> [overlappingBoundaryRect1, boundaryRect2, ...]
+  var validPointsAnalyzed = 0;
+
+  // --- Phase 1: Find which boundaries cover each data point ---
+  dataSource.forEach(function (point, pointIndex) {
+    // Ensure point is valid and has orders > 0
+    if (point && typeof point.lat === 'number' && typeof point.lng === 'number' && typeof point.orders === 'number' && !isNaN(point.lat) && !isNaN(point.lng) && !isNaN(point.orders) && point.orders > 1e-9)
+      // Use epsilon
+      {
+        validPointsAnalyzed++;
+        var pointLatLng = [point.lat, point.lng];
+        var overlaps = []; // Store overlaps for *this* point
+        boundaries.forEach(function (boundaryRect) {
+          // Check if the boundary is valid and contains the point
+          if (boundaryRect.boundaryBounds && boundaryRect.boundaryBounds.contains(pointLatLng)) {
+            overlaps.push(boundaryRect); // Add the boundary object itself
+          }
+        });
+        // If this point was covered by one or more boundaries, record it
+        if (overlaps.length > 0) {
+          pointOverlapMap.set(pointIndex, overlaps);
+        }
+      }
+  });
+  console.log("Found ".concat(pointOverlapMap.size, " points (out of ").concat(validPointsAnalyzed, " valid points) covered by ").concat(boundaries.length, " boundaries."));
+
+  // --- Phase 2: Distribute order value among overlapping boundaries ---
+  var boundaryOrderSum = new Map(); // Map: boundaryLeafletId -> { storeId: "...", orders: 0 }
+
+  pointOverlapMap.forEach(function (overlappingBoundaries, pointIndex) {
+    var orderValue = dataSource[pointIndex].orders; // Get order value from the specific dataSource
+    var overlapCount = overlappingBoundaries.length;
+    if (overlapCount > 0) {
+      var share = orderValue / overlapCount; // Calculate share per boundary
+      overlappingBoundaries.forEach(function (boundaryRect) {
+        var boundaryId = boundaryRect._leaflet_id; // Unique ID for this boundary rectangle
+        var storeId = boundaryRect.storeId; // Get the associated store ID
+
+        // Initialize if first time seeing this boundary
+        if (!boundaryOrderSum.has(boundaryId)) {
+          boundaryOrderSum.set(boundaryId, {
+            storeId: storeId,
+            orders: 0
+          });
+        }
+        // Add the share to this boundary's total
+        boundaryOrderSum.get(boundaryId).orders += share;
+      });
+    }
+  });
+
+  // --- Phase 3: Format results for display ---
+  var tempResults = [];
+  boundaryOrderSum.forEach(function (data, id) {
+    // Filter out results with negligible orders
+    if (data.orders > 1e-9) {
+      tempResults.push({
+        storeId: data.storeId,
+        value: data.orders
+      });
+    }
+  });
+
+  // Store final sorted results in the main variable
+  boundaryAnalysisResults = tempResults.sort(function (a, b) {
+    return b.value - a.value;
+  }) // Sort descending by order value
+  .map(function (item, index) {
+    return _objectSpread(_objectSpread({}, item), {}, {
+      rank: index + 1
+    });
+  }); // Add rank
+
+  showLoader(false);
+  console.log("Calculated orders for ".concat(boundaryAnalysisResults.length, " boundaries."));
+  displayAnalysisResults(); // Update UI
+}
+
+// Display function updates title based on flag, handles grid/boundary differences
+function displayAnalysisResults() {
+  storeCoverageAnalysisDiv.style.display = 'block'; // Make analysis section visible
+
+  var results = currentAnalysisMode === 'grid' ? coveredGridCellsData : boundaryAnalysisResults;
+  var noResults = !results || results.length === 0;
+  var resultType = currentAnalysisMode === 'grid' ? 'grid cells' : 'store boundaries';
+  var tableHeaderId = currentAnalysisMode === 'grid' ? 'Store ID(s) in Cell' : 'Store ID';
+  var modeText = currentAnalysisMode === 'grid' ? 'Grid' : 'Boundary';
+
+  // Update the main title for the analysis section
+  analysisResultsTitle.textContent = "".concat(modeText, " Analysis Results");
+  if (noResults) {
+    storeCoverageTableContainer.innerHTML = "<div class=\"placeholder\">No ".concat(resultType, " found ").concat(currentAnalysisMode === 'grid' ? 'covering stores' : 'containing orders', " from the selected data.</div>");
+    storeCoverageSlider.max = 0;
+    storeCoverageSlider.value = 0;
+    storeCoverageSlider.disabled = true;
+    storeCoverageSliderLabel.textContent = '0';
+    copyStoreCoverageButton.disabled = true;
+    updateHighlightedGrid(0); // Clear any previous highlights
+    updateAnalysisButtonStates(); // Ensure analysis button state is correct
+    return;
+  }
+
+  // --- Build Table HTML ---
+  var tableHTML = "<table id=\"store-coverage-table\"><thead><tr><th>Rank</th><th>".concat(tableHeaderId, "</th><th>Orders</th></tr></thead><tbody>");
+  results.forEach(function (item, index) {
+    // Format order value for display
+    var displayValue = item.value.toFixed(item.value < 10 ? 2 : item.value < 100 ? 1 : 0);
+    // Get ID(s) text based on mode
+    var idText = currentAnalysisMode === 'grid' ? item.storeIds ? item.storeIds.join(', ') : 'N/A' // Handle potential missing storeIds
+    : item.storeId || 'N/A';
+    // Get rank (already calculated for boundary, use index+1 for grid)
+    var rank = currentAnalysisMode === 'grid' ? index + 1 : item.rank;
+    tableHTML += "<tr><td>".concat(rank, "</td><td>").concat(idText, "</td><td style=\"text-align: right;\">").concat(displayValue, "</td></tr>"); // Align numbers right
+  });
+  tableHTML += '</tbody></table>';
+  storeCoverageTableContainer.innerHTML = tableHTML; // Update table container
+
+  // --- Configure Slider (Grid Mode Only) ---
+  if (currentAnalysisMode === 'grid') {
+    storeCoverageSlider.disabled = false;
+    storeCoverageSlider.min = 0; // Allow showing 0 highlights
+    storeCoverageSlider.max = results.length;
+    // Maintain current slider value if possible, otherwise default to max
+    var currentSliderValue = Math.min(parseInt(storeCoverageSlider.value, 10), results.length);
+    if (isNaN(currentSliderValue) || currentSliderValue < 0) {
+      // Ensure value is valid, default to max if not
+      currentSliderValue = results.length;
+    }
+    storeCoverageSlider.value = currentSliderValue; // Set slider position
+    storeCoverageSliderLabel.textContent = currentSliderValue; // Update label
+    storeCoverageSliderContainer.style.display = 'block'; // Show slider
+    updateHighlightedGrid(currentSliderValue); // Highlight based on value
+  } else {
+    // Boundary Mode - Hide slider
+    storeCoverageSlider.disabled = true;
+    storeCoverageSlider.value = 0;
+    storeCoverageSliderLabel.textContent = '0';
+    storeCoverageSliderContainer.style.display = 'none'; // Hide slider container
+    updateHighlightedGrid(0); // Clear grid highlights (shouldn't be any anyway)
+  }
+
+  // Enable copy button now that there are results
+  copyStoreCoverageButton.disabled = false;
+  updateAnalysisButtonStates(); // Re-enable analysis buttons
+}
+
+// Highlights top N grid cells based on slider (Grid Mode Only)
+function updateHighlightedGrid(countToShow) {
+  // Clear existing highlights first
+  if (map.hasLayer(highlightedGridLayer)) {
+    // map.removeLayer(highlightedGridLayer); // Removing/re-adding can cause flicker
+    highlightedGridLayer.clearLayers(); // Prefer clearing
+  } else {
+    highlightedGridLayer.clearLayers(); // Ensure it's empty even if not on map
+  }
+
+  // Only proceed if in grid mode, count > 0, and results exist
+  if (currentAnalysisMode !== 'grid' || countToShow <= 0 || !coveredGridCellsData || coveredGridCellsData.length === 0) {
+    return;
+  }
+  var cellsToHighlight = coveredGridCellsData.slice(0, countToShow);
+  var highlightedCount = 0;
+  cellsToHighlight.forEach(function (item) {
+    var originalCell = item.cell;
+    // Check if the original cell and its bounds are valid
+    if (originalCell && originalCell.getBounds && originalCell.options) {
+      // Create a new rectangle for the highlight overlay
+      var highlightRect = L.rectangle(originalCell.getBounds(), _objectSpread(_objectSpread({}, HIGHLIGHT_CELL_STYLE), {}, {
+        // Uses yellow border defined earlier
+        fillColor: originalCell.options.fillColor,
+        // Keep original fill color
+        fillOpacity: 0.3 // Make highlight slightly more transparent than original
+      }));
+      highlightedGridLayer.addLayer(highlightRect);
+      highlightedCount++;
+    } else {
+      console.warn("Skipping highlight for invalid cell data:", item);
+    }
+  });
+
+  // Add the layer to the map only if it's not already there and has highlights
+  if (highlightedCount > 0 && !map.hasLayer(highlightedGridLayer)) {
+    highlightedGridLayer.addTo(map);
+  }
+  // console.log("Highlighted " + highlightedCount + " grid cells.");
+}
+
+// Clear Analysis Results Display and State
+function clearAnalysisResults() {
+  console.log("Clearing analysis results display.");
+  coveredGridCellsData = []; // Clear grid results data
+  boundaryAnalysisResults = []; // Clear boundary results data
+
+  // Clear visual highlights
+  if (map.hasLayer(highlightedGridLayer)) {
+    // map.removeLayer(highlightedGridLayer); // Flicker issue
+    highlightedGridLayer.clearLayers();
+  } else {
+    highlightedGridLayer.clearLayers(); // Ensure empty
+  }
+
+  // Reset the analysis display section in the left sidebar
+  if (storeCoverageAnalysisDiv) {
+    storeCoverageAnalysisDiv.style.display = 'none'; // Hide the whole section
+    storeCoverageTableContainer.innerHTML = storeCoveragePlaceholder; // Reset table
+    storeCoverageSlider.max = 0; // Reset slider
+    storeCoverageSlider.value = 0;
+    storeCoverageSlider.disabled = true;
+    storeCoverageSliderLabel.textContent = '0';
+    storeCoverageSliderContainer.style.display = 'block'; // Keep container visible but slider disabled
+    analysisResultsTitle.textContent = "Analysis Results"; // Reset title
+    copyStoreCoverageButton.disabled = true; // Disable copy button
+  }
+
+  // Reset analysis button states logically
+  updateAnalysisButtonStates(); // Re-evaluate button states
+}
+
+// Copy Analysis Data to Clipboard
+function copyStoreCoverageData() {
+  var resultsToCopy = currentAnalysisMode === 'grid' ? coveredGridCellsData : boundaryAnalysisResults;
+  var noResults = !resultsToCopy || resultsToCopy.length === 0;
+  if (noResults) {
+    // Feedback directly on the button
+    copyStoreCoverageButton.textContent = "No Data!";
+    copyStoreCoverageButton.style.backgroundColor = '#ffc107'; // Yellow warning
+    setTimeout(function () {
+      copyStoreCoverageButton.textContent = "Copy Analysis Data";
+      copyStoreCoverageButton.style.backgroundColor = '#6c757d'; // Restore original color
+    }, 1500);
+    return;
+  }
+  var tsvString = "";
+  // Construct TSV string based on the current analysis mode
+  if (currentAnalysisMode === 'grid') {
+    tsvString = "Rank\tStore ID(s)\tOrders\n"; // Header row
+    resultsToCopy.forEach(function (item, index) {
+      var valueString = item.value.toString(); // Convert value to string
+      var storeIdString = item.storeIds ? item.storeIds.join(', ') : ''; // Join array, handle undefined
+      tsvString += "".concat(index + 1, "\t").concat(storeIdString, "\t").concat(valueString, "\n"); // Add data row
+    });
+  } else {
+    // Boundary Mode
+    tsvString = "Rank\tStore ID\tOrders\n"; // Header row
+    resultsToCopy.forEach(function (item) {
+      var valueString = item.value.toString();
+      var storeIdString = item.storeId || ''; // Handle undefined
+      tsvString += "".concat(item.rank, "\t").concat(storeIdString, "\t").concat(valueString, "\n"); // Add data row
+    });
+  }
+
+  // Use Clipboard API to copy the TSV string
+  navigator.clipboard.writeText(tsvString).then(function () {
+    // Success feedback
+    copyStoreCoverageButton.textContent = "Copied!";
+    copyStoreCoverageButton.style.backgroundColor = '#28a745'; // Green success
+    setTimeout(function () {
+      copyStoreCoverageButton.textContent = "Copy Analysis Data";
+      copyStoreCoverageButton.style.backgroundColor = '#6c757d'; // Restore color
+      copyStoreCoverageButton.disabled = noResults; // Keep disabled if there were no results initially
+    }, 1800);
+  })["catch"](function (err) {
+    // Error feedback
+    console.error('Failed to copy analysis data: ', err);
+    copyStoreCoverageButton.textContent = "Copy Failed";
+    copyStoreCoverageButton.style.backgroundColor = '#dc3545'; // Red error
+    setTimeout(function () {
+      copyStoreCoverageButton.textContent = "Copy Analysis Data";
+      copyStoreCoverageButton.style.backgroundColor = '#6c757d'; // Restore color
+      copyStoreCoverageButton.disabled = noResults;
+    }, 2000);
+  });
+}
+
+// Handle Switching Between Grid and Boundary Analysis Modes
+function handleAnalysisModeChange(newMode) {
+  if (newMode === currentAnalysisMode) return; // No change
+
+  console.log("Switching analysis mode from ".concat(currentAnalysisMode, " to: ").concat(newMode));
+  currentAnalysisMode = newMode; // Update global state
+
+  // Clear things specific to the previous mode or analysis results
+  clearAnalysisResults();
+  clearStoreClickBoundary();
+  calculateAndDisplayGridSummary([]); // Clear summary (relevant if switching FROM grid)
+
+  // --- UI Adjustments based on NEW mode ---
+  if (newMode === 'grid') {
+    var _document$querySelect3;
+    // Show/Hide UI elements relevant to Grid mode
+    plotBoundariesButton.style.display = 'none'; // Hide boundary plot button
+    clearCatchmentsButton.style.display = 'none'; // Hide clear button
+    catchmentControls.style.display = 'block'; // Show catchment size (used by grid)
+    catchmentRadioGroup.style.display = 'block';
+    boundaryCatchmentContainer.style.display = 'none';
+    heatmapControls.style.display = 'block'; // Show heatmap scale
+    gridAnalysisControls.style.display = 'block'; // Show centroid toggle area
+    gridSummaryContainer.style.display = 'block'; // Show summary area
+
+    clearBoundaries(); // Remove any plotted boundaries if switching TO grid mode
+
+    // Update centroid button state based on current grid status
+    centroidToggleButton.disabled = currentGridSize === 'none' || !activeGridLayer || !map.hasLayer(activeGridLayer);
+    centroidToggleButton.textContent = areCentroidsVisible ? "Hide Cell Centroids" : "Show Cell Centroids";
+    if (!centroidToggleButton.disabled && areCentroidsVisible) {
+      centroidToggleButton.classList.add('active');
+    } else {
+      centroidToggleButton.classList.remove('active');
+    }
+
+    // Potentially regenerate grid if a size was selected
+    var selectedGrid = (_document$querySelect3 = document.querySelector('input[name="grid-toggle"]:checked')) === null || _document$querySelect3 === void 0 ? void 0 : _document$querySelect3.value;
+    if (selectedGrid && selectedGrid !== 'none') {
+      needsGridRegeneration = false; // Don't wait for moveend, trigger now
+      handleGridToggle(selectedGrid, false); // Trigger grid generation/display
+    } else {
+      // No grid size selected, ensure buttons are disabled
+      processDataButton.disabled = true;
+      // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+    }
+  } else if (newMode === 'boundary') {
+    // Show/Hide UI elements relevant to Boundary mode
+    plotBoundariesButton.style.display = 'block'; // Show boundary plot button
+    clearCatchmentsButton.style.display = 'block'; // Show clear button
+    catchmentControls.style.display = 'block'; // Show catchment size (used by boundary)
+    catchmentRadioGroup.style.display = 'none';
+    boundaryCatchmentContainer.style.display = 'block';
+    heatmapControls.style.display = 'none'; // Hide heatmap scale
+    gridAnalysisControls.style.display = 'none'; // Hide centroid toggle area
+    gridSummaryContainer.style.display = 'none'; // Hide summary area
+
+    // Disable boundary plot button initially if conditions aren't met - handled by updateAnalysisButtonStates
+
+    // Clear grid elements if switching TO boundary mode
+    if (activeGridLayer && map.hasLayer(activeGridLayer)) {
+      map.removeLayer(activeGridLayer);
+      activeGridLayer = null;
+    }
+    if (areCentroidsVisible) {
+      // Hide and disable centroids
+      toggleCentroidVisibility(false);
+    }
+    centroidToggleButton.disabled = true; // Ensure disabled
+    centroidToggleButton.textContent = "Show (Boundary Mode)";
+    processDataButton.disabled = true; // Grid copy not applicable
+
+    updateBoundaryHeatmapVisibility();
+
+    // Analysis button depends on whether boundaries are plotted (checked by plotBoundaries/clearBoundaries) - handled by updateAnalysisButtonStates
+  }
+
+  // Reset buttons common to both modes after switching
+  copyStoreCoverageButton.disabled = true; // Analysis results cleared
+  updateAnalysisButtonStates(); // Final call to update button states after mode switch
+  console.log("Analysis mode switched. UI updated.");
+}
+
+// --- Event Listeners ---
+cityButtons.forEach(function (button) {
+  button.addEventListener('click', function () {
+    return focusOnCity(button);
+  });
+});
+indiaViewButton.addEventListener('click', showIndiaOverview);
+
+// Store Search Listeners
+storeSearchButton.addEventListener('click', findAndHighlightStore);
+storeSearchInput.addEventListener('keypress', function (e) {
+  // Optional: Allow Enter key
+  if (e.key === 'Enter') {
+    findAndHighlightStore();
+    e.preventDefault(); // Prevent potential form submission if wrapped in form
+  }
+});
+distanceMarkersButton.addEventListener('click', addDistanceMarkers);
+clearDistanceMarkersButton.addEventListener('click', clearDistanceMarkers);
+
+// Grid Data Copy Listener (Grid Mode Only)
+processDataButton.addEventListener('click', function () {
+  if (currentAnalysisMode !== 'grid') {
+    console.warn("Attempted to copy grid data when not in grid mode.");
+    return;
+  }
+  // Use the globally stored sorted values
+  var numericValuesSortedDesc = _toConsumableArray(currentGridValues);
+  if (!activeGridLayer || numericValuesSortedDesc.length === 0) {
+    processDataButton.textContent = "No Grid Data!";
+    processDataButton.style.backgroundColor = '#ffc107';
+    setTimeout(function () {
+      processDataButton.textContent = "Copy Grid Values";
+      processDataButton.style.backgroundColor = '#5bc0de';
+    }, 1500);
+    return;
+  }
+  var textToCopy = numericValuesSortedDesc.join('\n');
+  navigator.clipboard.writeText(textToCopy).then(function () {
+    processDataButton.textContent = "Grid Copied!";
+    processDataButton.style.backgroundColor = '#28a745';
+    setTimeout(function () {
+      processDataButton.textContent = "Copy Grid Values";
+      processDataButton.style.backgroundColor = '#5bc0de';
+    }, 1800);
+  })["catch"](function (err) {
+    console.error("Failed to copy grid data:", err);
+    processDataButton.textContent = "Copy Failed!";
+    processDataButton.style.backgroundColor = '#dc3545';
+    setTimeout(function () {
+      processDataButton.textContent = "Copy Grid Values";
+      processDataButton.style.backgroundColor = '#5bc0de';
+    }, 2000);
+  });
+});
+eraseDataButton.addEventListener('click', clearRightSidebarData);
+
+// Analysis Mode Change Listener
+analysisModeRadios.forEach(function (radio) {
+  radio.addEventListener('change', function (event) {
+    return handleAnalysisModeChange(event.target.value);
+  });
+});
+
+// Boundary Plot Listener (Boundary Mode Only)
+plotBoundariesButton.addEventListener('click', plotBoundaries);
+
+// Grid/Catchment Size Change Listener
+gridToggleRadios.forEach(function (radio) {
+  radio.addEventListener('change', function (event) {
+    needsGridRegeneration = false; // Reset flag, handle directly
+    handleGridToggle(event.target.value, false); // Trigger handler
+  });
+});
+
+// Boundary catchment checkbox listener
+boundaryCatchmentCheckboxes.forEach(function (cb) {
+  cb.addEventListener('change', function () {
+    updateAnalysisButtonStates();
+    updateBoundaryHeatmapVisibility();
+  });
+});
+
+// Heatmap Color Scale Change Listener (Grid Mode Only)
+colorScaleRadios.forEach(function (radio) {
+  radio.addEventListener('change', function (event) {
+    var newMax = parseFloat(event.target.value);
+    if (!isNaN(newMax) && newMax > 0 && currentMaxColorValue !== newMax) {
+      console.log("Changing heatmap max color value to: ".concat(newMax));
+      currentMaxColorValue = newMax;
+      // If in grid mode and a grid is active, regenerate it with the new scale
+      if (currentAnalysisMode === 'grid' && currentGridSize !== 'none' && activeGridLayer && map.hasLayer(activeGridLayer)) {
+        needsGridRegeneration = false; // Handle directly
+        clearStoreClickBoundary(); // Clear potential boundary related to old colors
+        handleGridToggle(currentGridSize, false); // Regenerate grid
+      }
+    }
+  });
+});
+
+// Store type toggle listeners
+retailCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingRetailCheckbox.addEventListener('change', updateADLayerVisibility);
+fcCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingFcCheckbox.addEventListener('change', updateADLayerVisibility);
+docpharmaCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingDocpharmaCheckbox.addEventListener('change', updateADLayerVisibility);
+bbCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingBbCheckbox.addEventListener('change', updateADLayerVisibility);
+
+// Centroid Toggle Listener (Grid Mode Only)
+centroidToggleButton.addEventListener('click', function () {
+  if (!centroidToggleButton.disabled) {
+    // Check if button is enabled
+    toggleCentroidVisibility(!areCentroidsVisible); // Toggle state
+  }
+});
+
+// Analysis Button Listeners
+analyzeStoreCoverageButton.addEventListener('click', runAnalysis); // Runs analysis on available data
+
+// Analysis Slider Listener (Grid Mode Only)
+storeCoverageSlider.addEventListener('input', function (event) {
+  if (currentAnalysisMode === 'grid') {
+    // Only relevant for grid mode
+    var count = parseInt(event.target.value, 10);
+    if (!isNaN(count)) {
+      storeCoverageSliderLabel.textContent = count; // Update label
+      updateHighlightedGrid(count); // Update highlighted cells
+    }
+  }
+});
+
+// Analysis Copy Listener
+copyStoreCoverageButton.addEventListener('click', copyStoreCoverageData);
+clearCatchmentsButton.addEventListener('click', function () {
+  boundaryCatchmentCheckboxes.forEach(function (cb) {
+    return cb.checked = false;
+  });
+  clearBoundaries();
+  updateAnalysisButtonStates();
+  updateBoundaryHeatmapVisibility();
+});
+
+// --- Map move/zoom listeners ---
+var moveEndTimeout;
+map.on('moveend', function (e) {
+  // Clear any temporary boundary from a store click
+  clearStoreClickBoundary();
+
+  // Check if regeneration is needed (set by city focus/India view)
+  if (needsGridRegeneration && currentAnalysisMode === 'grid' && currentGridSize !== 'none') {
+    console.log("Moveend triggered grid regeneration.");
+    clearAnalysisResults(); // Clear results before regenerating
+    needsGridRegeneration = false; // Consume the flag
+    // Use a small delay to prevent excessive calls if moveend fires rapidly
+    clearTimeout(moveEndTimeout);
+    moveEndTimeout = setTimeout(function () {
+      handleGridToggle(currentGridSize, true); // Pass flag indicating it's due to map move
+    }, 150); // Adjust delay as needed
+  } else if (needsGridRegeneration) {
+    // Reset flag if not in grid mode or no grid size selected
+    needsGridRegeneration = false;
+  }
+
+  // Update permanent tooltips visibility based on zoom
+  if (currentAnalysisMode === 'grid' && activeGridLayer && map.hasLayer(activeGridLayer)) {
+    var showLabels = map.getZoom() > 13; // Threshold zoom level
+    activeGridLayer.eachLayer(function (layer) {
+      if (layer.getTooltip()) {
+        if (showLabels && !layer.isTooltipOpen()) {
+          layer.openTooltip();
+        } else if (!showLabels && layer.isTooltipOpen()) {
+          layer.closeTooltip();
+        }
+      } else if (showLabels && layer.bindTooltip && layer._tooltipContent) {
+        // Rebind if tooltip was removed or not initially permanent
+        layer.bindTooltip(layer._tooltipContent, {
+          permanent: true,
+          direction: 'center',
+          className: 'grid-label',
+          opacity: 0.9
+        });
+        layer.openTooltip();
+      }
+    });
+  }
+});
+
+// --- Initial Page Setup ---
+function initializeApp() {
+  console.log("Initializing application...");
+  createRetailStoreMarkers(); // Create markers and populate layers
+
+  // Set initial state for buttons and UI elements
+  calculateAndDisplayGridSummary([]); // Clear summary initially
+  centroidToggleButton.disabled = true;
+  centroidToggleButton.textContent = "Show (No Grid)";
+  // analyzeStoreCoverageButton.disabled = true; // Handled by updateAnalysisButtonStates
+  copyStoreCoverageButton.disabled = true;
+  processDataButton.disabled = true;
+  plotBoundariesButton.style.display = 'none'; // Hide boundary button initially
+  clearCatchmentsButton.style.display = 'none'; // Hide clear button initially
+
+  // Clear any potential leftover state
+  clearAnalysisResults();
+  clearStoreClickBoundary();
+  clearBoundaries();
+  gridSummaryContainer.innerHTML = placeholderSummary; // Set placeholder
+
+  // Set the initial analysis mode and update UI accordingly
+  handleAnalysisModeChange('grid'); // Start in Grid mode
+
+  // Ensure canonical view is set
+  canonicalView = {
+    lat: INDIA_CENTER[0],
+    lng: INDIA_CENTER[1],
+    zoom: INDIA_ZOOM
+  };
+
+  // Set initial AD layer visibility based on checkbox states (which are checked by default in HTML)
+  // This is done by updateADLayerVisibility which is called by createRetailStoreMarkers
+  // updateADLayerVisibility(); // Now called inside createRetailStoreMarkers
+
+  console.log("Map and Controls Initialized.");
+}
+
+// Run initialization when the DOM is ready
+document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+
+</body>
+</html>
