@@ -1939,7 +1939,10 @@ function updateAnalysisButtonStates() {
   var anyBoundarySizeSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
     return cb.checked;
   });
-  plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || !anyBoundarySizeSelected || !anyADLayerHasMarkersAndIsVisible; // Cannot plot if no stores loaded or visible
+  var heatmapOnlySelected = anyBoundarySizeSelected && Array.from(boundaryCatchmentCheckboxes).every(function (cb) {
+    return !cb.checked || cb.value === 'heatmap';
+  });
+  plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || !anyBoundarySizeSelected || !heatmapOnlySelected && !anyADLayerHasMarkersAndIsVisible; // Allow heatmap without stores
 }
 function updateBoundaryHeatmapVisibility() {
   var heatmapSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
@@ -2279,12 +2282,13 @@ function plotBoundaries() {
     plotBoundariesButton.disabled = true;
     return;
   }
-  if (!areAnyADLayersVisibleAndLoaded()) {
-    // Check if any AD layers are visible
+  var anyADVisible = areAnyADLayersVisibleAndLoaded();
+  var includesHeatmap = selectedSizes.includes('heatmap');
+  if (!anyADVisible && !includesHeatmap) {
+    // Check if any AD layers are visible when no heatmap requested
     alert("Please enable at least one AD Type checkbox and ensure some are visible to plot boundaries.");
     return;
   }
-  var includesHeatmap = selectedSizes.includes('heatmap');
   var sizeKmValues = selectedSizes.filter(function (val) {
     return val !== 'heatmap';
   }).map(function (val) {
@@ -2380,8 +2384,8 @@ function plotBoundaries() {
   updateAnalysisButtonStates(); // Update analysis button state after plotting
   copyStoreCoverageButton.disabled = true; // Analysis hasn't run yet
 
-  if (plottedCount === 0 && areAnyADLayersVisibleAndLoaded()) {
-    // Check if stores were visible but none in map view
+  if (plottedCount === 0 && !includesHeatmap && areAnyADLayersVisibleAndLoaded()) {
+    // Check if stores were visible but none in map view (skip alert if only heatmap)
     alert("No ADs are currently visible in the map view to plot boundaries for.");
   }
   console.log("Plotted ".concat(plottedCount, " boundaries."));
