@@ -267,6 +267,8 @@
                  <div id="retail-legend" style="display: none;">
     <div><span style="background-color:#f1310f;"></span> Retail_Store</div>
     <div><span style="background-color:#ff8221;"></span> Upcoming_Retail_Store</div>
+    <div><span style="background-color:#d4cf0b;"></span> Upcoming_Retail_Store_Termsheet</div>
+    <div><span style="background-color:#00a9fb;"></span> Upcoming_Retail_Store_Legal</div>
 </div>
             <!-- ADs Locations -->
 <div class="controls-section" id="ads-toggle-section">
@@ -275,6 +277,8 @@
   <!-- Checkboxes for toggling each store type layer -->
   <label><input type="checkbox" id="toggle-retail-store" checked> Retail Store</label>
   <label><input type="checkbox" id="toggle-upcoming-retail-store" checked> Upcoming Retail Store</label>
+  <label><input type="checkbox" id="toggle-upcoming-retail-store-termsheet" checked> Upcoming Retail Store Termsheet</label>
+  <label><input type="checkbox" id="toggle-upcoming-retail-store-legal" checked> Upcoming Retail Store Legal</label>
 
   <label><input type="checkbox" id="toggle-fc" checked> FC</label>
   <label><input type="checkbox" id="toggle-upcoming-fc" checked> Upcoming FC</label>
@@ -385,6 +389,8 @@ var currentCityFilter = null;
 // Layers for specific store types
 var retailLayer = L.layerGroup(); // Retail_Store
 var upcomingRetailLayer = L.layerGroup(); // Upcoming_Retail_Store
+var upcomingRetailStoreTermsheetLayer = L.layerGroup(); // Upcoming_Retail_Store_Termsheet
+var upcomingRetailStoreLegalLayer = L.layerGroup(); // Upcoming_Retail_Store_Legal
 var fcLayer = L.layerGroup(); // FC
 var upcomingFcLayer = L.layerGroup(); // Upcoming_FC
 var docpharmaLayer = L.layerGroup(); // Docpharma
@@ -1012,6 +1018,8 @@ boundaryLayer.addTo(map);
 // Add store type layers to map by default (based on initial checkbox state)
 map.addLayer(retailLayer);
 map.addLayer(upcomingRetailLayer);
+map.addLayer(upcomingRetailStoreTermsheetLayer);
+map.addLayer(upcomingRetailStoreLegalLayer);
 map.addLayer(fcLayer);
 map.addLayer(upcomingFcLayer);
 map.addLayer(docpharmaLayer);
@@ -1043,6 +1051,8 @@ var gridSummaryContainer = document.getElementById('grid-summary-container');
 // Store type toggle checkboxes
 var retailCheckbox = document.getElementById('toggle-retail-store');
 var upcomingRetailCheckbox = document.getElementById('toggle-upcoming-retail-store');
+var upcomingRetailStoreTermsheetCheckbox = document.getElementById('toggle-upcoming-retail-store-termsheet');
+var upcomingRetailStoreLegalCheckbox = document.getElementById('toggle-upcoming-retail-store-legal');
 var fcCheckbox = document.getElementById('toggle-fc');
 var upcomingFcCheckbox = document.getElementById('toggle-upcoming-fc');
 var docpharmaCheckbox = document.getElementById('toggle-docpharma');
@@ -1115,7 +1125,7 @@ function toggleLayer(checkbox, layer) {
 
 // Check if any store-type layer is visible and has markers
 function areAnyADLayersVisibleAndLoaded() {
-  return retailCheckbox.checked && retailLayer.getLayers().length > 0 || upcomingRetailCheckbox.checked && upcomingRetailLayer.getLayers().length > 0 || fcCheckbox.checked && fcLayer.getLayers().length > 0 || upcomingFcCheckbox.checked && upcomingFcLayer.getLayers().length > 0 || docpharmaCheckbox.checked && docpharmaLayer.getLayers().length > 0 || upcomingDocpharmaCheckbox.checked && upcomingDocpharmaLayer.getLayers().length > 0 || bbCheckbox.checked && bbLayer.getLayers().length > 0 || upcomingBbCheckbox.checked && upcomingBbLayer.getLayers().length > 0;
+  return retailCheckbox.checked && retailLayer.getLayers().length > 0 || upcomingRetailCheckbox.checked && upcomingRetailLayer.getLayers().length > 0 || upcomingRetailStoreTermsheetCheckbox.checked && upcomingRetailStoreTermsheetLayer.getLayers().length > 0 || upcomingRetailStoreLegalCheckbox.checked && upcomingRetailStoreLegalLayer.getLayers().length > 0 || fcCheckbox.checked && fcLayer.getLayers().length > 0 || upcomingFcCheckbox.checked && upcomingFcLayer.getLayers().length > 0 || docpharmaCheckbox.checked && docpharmaLayer.getLayers().length > 0 || upcomingDocpharmaCheckbox.checked && upcomingDocpharmaLayer.getLayers().length > 0 || bbCheckbox.checked && bbLayer.getLayers().length > 0 || upcomingBbCheckbox.checked && upcomingBbLayer.getLayers().length > 0;
 }
 
 // --- NEW: Store Search Function ---
@@ -1485,6 +1495,8 @@ function createRetailStoreMarkers() {
   // Clear all store type layers and the combined layer
   retailLayer.clearLayers();
   upcomingRetailLayer.clearLayers();
+  upcomingRetailStoreTermsheetLayer.clearLayers();
+  upcomingRetailStoreLegalLayer.clearLayers();
   fcLayer.clearLayers();
   upcomingFcLayer.clearLayers();
   docpharmaLayer.clearLayers();
@@ -1507,6 +1519,12 @@ function createRetailStoreMarkers() {
         break;
       case 'upcoming_retail_store':
         color = '#ff8221';
+        break;
+      case 'upcoming_retail_store_termsheet':
+        color = '#d4cf0b';
+        break;
+      case 'upcoming_retail_store_legal':
+        color = '#00a9fb';
         break;
       case 'fc':
         color = '#3f954f';
@@ -1552,6 +1570,10 @@ function createRetailStoreMarkers() {
       retailLayer.addLayer(marker);
     } else if (typeLower === 'upcoming_retail_store') {
       upcomingRetailLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_retail_store_termsheet') {
+      upcomingRetailStoreTermsheetLayer.addLayer(marker);
+    } else if (typeLower === 'upcoming_retail_store_legal') {
+      upcomingRetailStoreLegalLayer.addLayer(marker);
     } else if (typeLower === 'fc') {
       fcLayer.addLayer(marker);
     } else if (typeLower === 'upcoming_fc') {
@@ -1601,7 +1623,7 @@ function initStoreToggleList() {
         var layer = null;
 
         // Map type to correct layer
-        if (typeLower === 'retail_store') layer = retailLayer;else if (typeLower === 'upcoming_retail_store') layer = upcomingRetailLayer;else if (typeLower === 'fc') layer = fcLayer;else if (typeLower === 'upcoming_fc') layer = upcomingFcLayer;else if (typeLower === 'docpharma') layer = docpharmaLayer;else if (typeLower === 'upcoming_docpharma') layer = upcomingDocpharmaLayer;else if (typeLower === 'bb') layer = bbLayer;else if (typeLower === 'upcoming_bb') layer = upcomingBbLayer;
+        if (typeLower === 'retail_store') layer = retailLayer;else if (typeLower === 'upcoming_retail_store') layer = upcomingRetailLayer;else if (typeLower === 'upcoming_retail_store_termsheet') layer = upcomingRetailStoreTermsheetLayer;else if (typeLower === 'upcoming_retail_store_legal') layer = upcomingRetailStoreLegalLayer;else if (typeLower === 'fc') layer = fcLayer;else if (typeLower === 'upcoming_fc') layer = upcomingFcLayer;else if (typeLower === 'docpharma') layer = docpharmaLayer;else if (typeLower === 'upcoming_docpharma') layer = upcomingDocpharmaLayer;else if (typeLower === 'bb') layer = bbLayer;else if (typeLower === 'upcoming_bb') layer = upcomingBbLayer;
 
         // Add/remove marker from appropriate layer
         if (layer) {
@@ -1887,6 +1909,8 @@ function showIndiaOverview() {
 function updateADLayerVisibility() {
   toggleLayer(retailCheckbox, retailLayer);
   toggleLayer(upcomingRetailCheckbox, upcomingRetailLayer);
+  toggleLayer(upcomingRetailStoreTermsheetCheckbox, upcomingRetailStoreTermsheetLayer);
+  toggleLayer(upcomingRetailStoreLegalCheckbox, upcomingRetailStoreLegalLayer);
   toggleLayer(fcCheckbox, fcLayer);
   toggleLayer(upcomingFcCheckbox, upcomingFcLayer);
   toggleLayer(docpharmaCheckbox, docpharmaLayer);
@@ -1895,7 +1919,7 @@ function updateADLayerVisibility() {
   toggleLayer(upcomingBbCheckbox, upcomingBbLayer);
 
   // Update legend visibility based on whether any layer is currently visible
-  var anyADVisible = [retailLayer, upcomingRetailLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].some(function (layer) {
+  var anyADVisible = [retailLayer, upcomingRetailLayer, upcomingRetailStoreTermsheetLayer, upcomingRetailStoreLegalLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].some(function (layer) {
     return map.hasLayer(layer);
   });
   retailLegend.style.display = anyADVisible ? 'block' : 'none';
@@ -1915,7 +1939,10 @@ function updateAnalysisButtonStates() {
   var anyBoundarySizeSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
     return cb.checked;
   });
-  plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || !anyBoundarySizeSelected || !anyADLayerHasMarkersAndIsVisible; // Cannot plot if no stores loaded or visible
+  var heatmapOnlySelected = anyBoundarySizeSelected && Array.from(boundaryCatchmentCheckboxes).every(function (cb) {
+    return !cb.checked || cb.value === 'heatmap';
+  });
+  plotBoundariesButton.disabled = currentAnalysisMode !== 'boundary' || !anyBoundarySizeSelected || !heatmapOnlySelected && !anyADLayerHasMarkersAndIsVisible; // Allow heatmap without stores
 }
 function updateBoundaryHeatmapVisibility() {
   var heatmapSelected = Array.from(boundaryCatchmentCheckboxes).some(function (cb) {
@@ -2255,12 +2282,13 @@ function plotBoundaries() {
     plotBoundariesButton.disabled = true;
     return;
   }
-  if (!areAnyADLayersVisibleAndLoaded()) {
-    // Check if any AD layers are visible
+  var anyADVisible = areAnyADLayersVisibleAndLoaded();
+  var includesHeatmap = selectedSizes.includes('heatmap');
+  if (!anyADVisible && !includesHeatmap) {
+    // Check if any AD layers are visible when no heatmap requested
     alert("Please enable at least one AD Type checkbox and ensure some are visible to plot boundaries.");
     return;
   }
-  var includesHeatmap = selectedSizes.includes('heatmap');
   var sizeKmValues = selectedSizes.filter(function (val) {
     return val !== 'heatmap';
   }).map(function (val) {
@@ -2301,6 +2329,10 @@ function plotBoundaries() {
     if (typeLower === 'retail_store' && map.hasLayer(retailLayer)) {
       isMarkerLayerVisible = true;
     } else if (typeLower === 'upcoming_retail_store' && map.hasLayer(upcomingRetailLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_retail_store_termsheet' && map.hasLayer(upcomingRetailStoreTermsheetLayer)) {
+      isMarkerLayerVisible = true;
+    } else if (typeLower === 'upcoming_retail_store_legal' && map.hasLayer(upcomingRetailStoreLegalLayer)) {
       isMarkerLayerVisible = true;
     } else if (typeLower === 'fc' && map.hasLayer(fcLayer)) {
       isMarkerLayerVisible = true;
@@ -2352,8 +2384,8 @@ function plotBoundaries() {
   updateAnalysisButtonStates(); // Update analysis button state after plotting
   copyStoreCoverageButton.disabled = true; // Analysis hasn't run yet
 
-  if (plottedCount === 0 && areAnyADLayersVisibleAndLoaded()) {
-    // Check if stores were visible but none in map view
+  if (plottedCount === 0 && !includesHeatmap && areAnyADLayersVisibleAndLoaded()) {
+    // Check if stores were visible but none in map view (skip alert if only heatmap)
     alert("No ADs are currently visible in the map view to plot boundaries for.");
   }
   console.log("Plotted ".concat(plottedCount, " boundaries."));
@@ -2421,7 +2453,7 @@ function analyzeGridCoverage(dataSource) {
 
   // Collect all visible markers from all store layers
   var visibleStores = [];
-  [retailLayer, upcomingRetailLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].forEach(function (layer) {
+  [retailLayer, upcomingRetailLayer, upcomingRetailStoreTermsheetLayer, upcomingRetailStoreLegalLayer, fcLayer, upcomingFcLayer, docpharmaLayer, upcomingDocpharmaLayer, bbLayer, upcomingBbLayer].forEach(function (layer) {
     if (map.hasLayer(layer)) layer.eachLayer(function (m) {
       return visibleStores.push(m);
     });
@@ -2998,6 +3030,8 @@ colorScaleRadios.forEach(function (radio) {
 // Store type toggle listeners
 retailCheckbox.addEventListener('change', updateADLayerVisibility);
 upcomingRetailCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingRetailStoreTermsheetCheckbox.addEventListener('change', updateADLayerVisibility);
+upcomingRetailStoreLegalCheckbox.addEventListener('change', updateADLayerVisibility);
 fcCheckbox.addEventListener('change', updateADLayerVisibility);
 upcomingFcCheckbox.addEventListener('change', updateADLayerVisibility);
 docpharmaCheckbox.addEventListener('change', updateADLayerVisibility);
